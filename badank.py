@@ -9,8 +9,11 @@ class Color(Enum):
     BLACK = 2
 
 class TextProgram:
-    def __init__(self, program):
-        self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    def __init__(self, program, dir_ = None):
+        if dir_ is None:
+            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        else:
+            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=dir_)
 
     def read(self):
         try:
@@ -31,8 +34,8 @@ class TextProgram:
         self.proc.stdout.close()
 
 class GtpEngine:
-    def __init__(self, program):
-        self.engine = TextProgram(program)
+    def __init__(self, program, dir_ = None):
+        self.engine = TextProgram(program, dir_)
 
     def getresponse(self):
         while True:
@@ -128,7 +131,7 @@ def play(pb, pw, board_size, scorer):
 
     color = Color.BLACK
 
-    winner = None
+    result = None
 
     while True:
         if color == Color.BLACK:
@@ -155,9 +158,9 @@ def play(pb, pw, board_size, scorer):
 
         elif move == 'resign':
             if color == Color.BLACK:
-                winner = Color.WHITE
+                result = "W"
             else:
-                winner = Color.BLACK
+                result = "B"
 
             break
 
@@ -171,16 +174,21 @@ def play(pb, pw, board_size, scorer):
         else:
             color = Color.BLACK
 
-    return scorer.getscore()
+    if not result:
+        result = scorer.getscore()
 
-def play_game(p1, p2, ps, dim, pgn_file):
+    return result
+
+def play_game(p1, p1dir, p2, p2dir, ps, dim, pgn_file):
     scorer = Scorer(ps)
 
-    inst1 = GtpEngine(p1)
+    inst1 = GtpEngine(p1, p1dir)
     name1 = inst1.getname()
 
-    inst2 = GtpEngine(p2)
+    inst2 = GtpEngine(p2, p2dir)
     name2 = inst2.getname()
+
+    print('%s versus %s' % (name1, name2))
 
     result = play(inst1, inst2, dim, scorer).lower()
     print(result)
@@ -200,5 +208,14 @@ def play_game(p1, p2, ps, dim, pgn_file):
 
     inst1.stop()
 
-play_game(['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], ['/home/folkert/Projects/baduck/build/src/donaldbaduck'], ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
-play_game(['/home/folkert/Projects/baduck/build/src/donaldbaduck'], ['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+play_game(['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, ['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+
+play_game(['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, ['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+
+play_game(['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, ['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+
+play_game(['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, ['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+
+play_game(['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, ['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+
+play_game(['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, ['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
