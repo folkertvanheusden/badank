@@ -179,13 +179,13 @@ def play(pb, pw, board_size, scorer):
 
     return result
 
-def play_game(p1, p1dir, p2, p2dir, ps, dim, pgn_file):
+def play_game(p1, p2, ps, dim, pgn_file):
     scorer = Scorer(ps)
 
-    inst1 = GtpEngine(p1, p1dir)
+    inst1 = GtpEngine(p1[0], p1[1])
     name1 = inst1.getname()
 
-    inst2 = GtpEngine(p2, p2dir)
+    inst2 = GtpEngine(p2[0], p2[1])
     name2 = inst2.getname()
 
     print('%s versus %s' % (name1, name2))
@@ -200,22 +200,34 @@ def play_game(p1, p1dir, p2, p2dir, ps, dim, pgn_file):
     else:
         result_pgn = '1/2-1/2'
 
+    # TODO apply locking around pgn_file access
     h = open(pgn_file, 'a')
-    h.write('[White "%s"]\n[Black "%s"]\n[Result "%s"]\n\n%s\n\n' % (name2, name1, result_pgn, result_pgn))
+    h.write('[White "%s"]\n[Black "%s"]\n[Result "%s"]\n\n%s\n\n' % (name2 if p2[2] is None else p2[2], name1 if p1[2] is None else p1[2], result_pgn, result_pgn))
     h.close()
 
     inst2.stop()
 
     inst1.stop()
 
-play_game(['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, ['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+def play_batch(engines, scorer, dim, pgn_file):
+    n = len(engines)
 
-play_game(['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, ['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+    print('Will play %d games' % (n * (n - 1)))
 
-play_game(['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, ['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+    for a in range(0, n):
+        for b in range(0, n):
+            if a == b:
+                continue
 
-play_game(['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, ['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+            play_game(engines[a], engines[b], scorer, dim, pgn_file)
 
-play_game(['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, ['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+engines = []
+engines.append((['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, None))
 
-play_game(['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, ['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+engines.append((['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, None))
+
+engines.append((['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, None))
+
+engines.append((['/usr/games/gnugo', '--mode', 'gtp', '--level', '0'], None, 'GnuGO level 1'))
+
+play_batch(engines, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
