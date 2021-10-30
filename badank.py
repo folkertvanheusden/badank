@@ -28,7 +28,7 @@ logger.addHandler(handler)
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.INFO)
 
-formatter = logging.Formatter("%(asctime)s: %(message)s")
+formatter = logging.Formatter("%(asctime)s [%(levelname)s]: %(message)s")
 handler.setFormatter(formatter)
 
 logger.addHandler(handler)
@@ -93,7 +93,7 @@ class GtpEngine:
 
     def getresponse(self):
         while True:
-            line = self.engine.read()
+            line = self.engine.read(30)  # FIXME 30 seconds hardcoded timeout
             if line == '':
                 continue
 
@@ -289,6 +289,7 @@ def process_entry(q, scorer, dim, pgn_file):
             play_game('%s] ' % entry[2], entry[0], entry[1], scorer, dim, pgn_file)
         except Exception as e:
             logger.error('play_game threw an exception: %s' % e)
+            logger.exception('exception')
 
 def play_batch(engines, scorer, dim, pgn_file, concurrency, iterations):
     logger.info('Batch starting')
@@ -340,14 +341,14 @@ engines.append((['/usr/games/gnugo', '--mode', 'gtp', '--level', '0'], None, 'Gn
 
 engines.append((['/home/folkert/amigogtp-1.8/amigogtp/amigogtp'], None, None))
 
-engines.append((['/home/folkert/Pachi/pachi-12.60-i686', '-e', 'pattern', '-t', '1'], '/home/folkert/Pachi', 'Pachi pattern'))
+engines.append((['/home/folkert/Pachi/pachi-12.60-i686', '-e', 'pattern', '-t', '1', '-D'], '/home/folkert/Pachi', 'Pachi pattern'))
 
 start_cpu_time = psutil.cpu_times()
 start_cpu_time_ts = start_cpu_time.user + start_cpu_time.system
 
 start_ts = time.time()
 
-iterations = 100
+iterations = 1000
 concurrency = 16
 play_batch(engines, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn', concurrency, iterations)
 
