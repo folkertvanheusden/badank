@@ -196,14 +196,14 @@ def play(pb, pw, board_size, scorer):
         if color == Color.BLACK:
             move = pb.genmove(color)
             if move == None:
-                result = Color.WHITE
+                result = "W"
                 break
             pw.play(color, move)
 
         else:
             move = pw.genmove(color)
             if move == None:
-                result = Color.BLACK
+                result = "B"
                 break
             pb.play(color, move)
 
