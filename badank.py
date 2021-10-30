@@ -184,7 +184,7 @@ def play(pb, pw, board_size, scorer):
 
     return result
 
-def play_game(p1, p2, ps, dim, pgn_file):
+def play_game(meta_str, p1, p2, ps, dim, pgn_file):
     scorer = Scorer(ps)
 
     inst1 = GtpEngine(p1[0], p1[1])
@@ -193,7 +193,7 @@ def play_game(p1, p2, ps, dim, pgn_file):
     inst2 = GtpEngine(p2[0], p2[1])
     name2 = inst2.getname()
 
-    print('%s versus %s started' % (name1, name2))
+    print('%s%s versus %s started' % (meta_str, name1, name2))
 
     result = play(inst1, inst2, dim, scorer).lower()
     # print(result)
@@ -223,21 +223,16 @@ def process_entry(q, scorer, dim, pgn_file):
         if entry == None:
             break
 
-        play_game(entry[0], entry[1], scorer, dim, pgn_file)
+        play_game('%s] ' % entry[2], entry[0], entry[1], scorer, dim, pgn_file)
 
-def play_batch(engines, scorer, dim, pgn_file, concurrency):
+def play_batch(engines, scorer, dim, pgn_file, concurrency, iterations):
+    print('Batch starting')
+
     n = len(engines)
 
-    print('Will play %d games' % (n * (n - 1)))
+    print('Will play %d games' % (n * (n - 1) * iterations))
 
-    q = Queue()
-
-    for a in range(0, n):
-        for b in range(0, n):
-            if a == b:
-                continue
-
-            q.put((engines[a], engines[b]))
+    q = Queue(maxsize = concurrency * 2)
 
     threads = []
 
@@ -247,11 +242,27 @@ def play_batch(engines, scorer, dim, pgn_file, concurrency):
 
         threads.append(th)
 
+    nr = 0
+
+    for i in range(0, iterations):
+        for a in range(0, n):
+            for b in range(0, n):
+                if a == b:
+                    continue
+
+                q.put((engines[a], engines[b], nr))
+                
+                nr += 1
+
     for i in range(0, concurrency):
         q.put(None)
 
+    print('Waiting for threads to finish...')
+
     for th in threads:
         th.join()
+
+    print('Batch finished')
 
 engines = []
 engines.append((['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, None))
@@ -267,7 +278,9 @@ start_cpu_time_ts = start_cpu_time.user + start_cpu_time.system
 
 start_ts = time.time()
 
-play_batch(engines, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn', 16)
+iterations = 1000
+concurrency = 16
+play_batch(engines, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn', concurrency, iterations)
 
 end_cpu_time = psutil.cpu_times()
 end_cpu_time_ts = end_cpu_time.user + end_cpu_time.system
