@@ -1,12 +1,38 @@
 #! /usr/bin/python3
 
 from enum import Enum
+import logging
+import logging.handlers
 import psutil
 from queue import Queue
 from select import select
 import subprocess
+import sys
 from threading import Lock, Thread
 import time
+
+### logging
+logger = logging.getLogger('badank')
+logger.setLevel(logging.DEBUG)
+
+# file
+handler = logging.FileHandler("badank.log")
+handler.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter("%(asctime)s [%(levelname)s]: %(message)s")
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
+
+# console
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+
+formatter = logging.Formatter("%(asctime)s: %(message)s")
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
+###
 
 pgn_file_lock = Lock()
 
@@ -16,6 +42,8 @@ class Color(Enum):
 
 class TextProgram:
     def __init__(self, program, dir_ = None):
+        self.name = program
+
         if dir_ is None:
             self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         else:
@@ -26,13 +54,14 @@ class TextProgram:
             if timeout != None:
                 poll_result = select([self.proc.stdout], [], [], timeout)[0]
                 if len(poll_result) == 0:
-                    print(' * Program stopped responding *')
+                    logger.warning('Program %s did not respond in time (%fs) (%s)' % (self.name[0], timeout, self.name))
                     return None
 
             return self.proc.stdout.readline().decode('utf-8').rstrip('\n')
         
         except Exception as e:
-            print('TextProgram: %s' % e)
+            logger.warning('Program %s crashed? (%s)' % (self.name[0], self.name))
+
             return None
 
     def write(self, what):
@@ -48,17 +77,18 @@ class TextProgram:
         try:
             self.proc.wait(timeout=1.0)
         except TimeoutExpired as te:
-            print(' * Forcibly terminating process')
+            logger.warning('Forcibly terminating %s (%s)' % (self.name[0], self.name))
             self.proc.terminate()
 
             try:
                 self.proc.wait(timeout=1.0)
             except TimeoutExpired as te:
-                print(' * Forcibly killing process')
+                logger.warning('Forcibly killing %s (%s)' % (self.name[0], self.name))
                 self.proc.kill()
 
 class GtpEngine:
     def __init__(self, program, dir_ = None):
+        self.name = program[0]
         self.engine = TextProgram(program, dir_)
 
     def getresponse(self):
@@ -68,6 +98,7 @@ class GtpEngine:
                 continue
 
             if line == None:
+                logger.warning('Program %s did not respond' % self.name)
                 return None
 
             if line[0] == '=':
@@ -105,7 +136,8 @@ class GtpEngine:
     def getname(self):
         self.engine.write('name')
 
-        return self.getresponse()
+        self.name = self.getresponse()
+        return self.name
 
     def stop(self):
         self.engine.stop()
@@ -221,7 +253,7 @@ def play_game(meta_str, p1, p2, ps, dim, pgn_file):
     inst2 = GtpEngine(p2[0], p2[1])
     name2 = inst2.getname()
 
-    print('%s%s versus %s started' % (meta_str, name1, name2))
+    logger.info('%s%s versus %s started' % (meta_str, name1, name2))
 
     result = play(inst1, inst2, dim, scorer).lower()
     # print(result)
@@ -245,7 +277,7 @@ def play_game(meta_str, p1, p2, ps, dim, pgn_file):
 
     scorer.stop()
 
-    print('%s (black) versus %s (white) result: %s' % (name1, name2, result))
+    logger.info('%s (black) versus %s (white) result: %s' % (name1, name2, result))
 
 def process_entry(q, scorer, dim, pgn_file):
     while True:
@@ -256,11 +288,11 @@ def process_entry(q, scorer, dim, pgn_file):
         play_game('%s] ' % entry[2], entry[0], entry[1], scorer, dim, pgn_file)
 
 def play_batch(engines, scorer, dim, pgn_file, concurrency, iterations):
-    print('Batch starting')
+    logger.info('Batch starting')
 
     n = len(engines)
 
-    print('Will play %d games' % (n * (n - 1) * iterations))
+    logger.info('Will play %d games' % (n * (n - 1) * iterations))
 
     q = Queue(maxsize = concurrency * 2)
 
@@ -287,12 +319,12 @@ def play_batch(engines, scorer, dim, pgn_file, concurrency, iterations):
     for i in range(0, concurrency):
         q.put(None)
 
-    print('Waiting for threads to finish...')
+    logger.info('Waiting for threads to finish...')
 
     for th in threads:
         th.join()
 
-    print('Batch finished')
+    logger.info('Batch finished')
 
 engines = []
 engines.append((['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, None))
@@ -320,4 +352,4 @@ end_ts = time.time()
 diff_ts = end_ts - start_ts
 diff_cpu_time_ts = end_cpu_time_ts - start_cpu_time_ts
 
-print('Took %fs, cpu usage: %fs (%f)' % (diff_ts, diff_cpu_time_ts, diff_cpu_time_ts / diff_ts))
+logger.info('Took %fs, cpu usage: %fs (%f)' % (diff_ts, diff_cpu_time_ts, diff_cpu_time_ts / diff_ts))
