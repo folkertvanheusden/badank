@@ -285,7 +285,10 @@ def process_entry(q, scorer, dim, pgn_file):
         if entry == None:
             break
 
-        play_game('%s] ' % entry[2], entry[0], entry[1], scorer, dim, pgn_file)
+        try:
+            play_game('%s] ' % entry[2], entry[0], entry[1], scorer, dim, pgn_file)
+        except Exception as e:
+            logger.error('play_game threw an exception: %s' % e)
 
 def play_batch(engines, scorer, dim, pgn_file, concurrency, iterations):
     logger.info('Batch starting')
