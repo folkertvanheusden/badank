@@ -3,6 +3,7 @@
 from enum import Enum
 import psutil
 from queue import Queue
+from select import select
 import subprocess
 from threading import Lock, Thread
 import time
@@ -20,8 +21,14 @@ class TextProgram:
         else:
             self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=dir_)
 
-    def read(self):
+    def read(self, timeout = None):
         try:
+            if timeout != None:
+                poll_result = select([self.proc.stdout], [], [], timeout)[0]
+                if len(poll_result) == 0:
+                    print(' * Program stopped responding *')
+                    return None
+
             return self.proc.stdout.readline().decode('utf-8').rstrip('\n')
         
         except Exception as e:
@@ -37,6 +44,18 @@ class TextProgram:
         self.write('quit')
         self.proc.stdin.close()
         self.proc.stdout.close()
+
+        try:
+            self.proc.wait(timeout=1.0)
+        except TimeoutExpired as te:
+            print(' * Forcibly terminating process')
+            self.proc.terminate()
+
+            try:
+                self.proc.wait(timeout=1.0)
+            except TimeoutExpired as te:
+                print(' * Forcibly killing process')
+                self.proc.kill()
 
 class GtpEngine:
     def __init__(self, program, dir_ = None):
@@ -115,6 +134,9 @@ class Scorer:
     def getscore(self):
         return self.p.getscore()
 
+    def stop(self):
+        self.p.stop()
+
 def gtp_vertex_to_coordinates(s):
     x = ord(s[0]) - ord('a')
     if s[0] >= 'i':
@@ -141,10 +163,16 @@ def play(pb, pw, board_size, scorer):
     while True:
         if color == Color.BLACK:
             move = pb.genmove(color)
+            if move == None:
+                result = Color.WHITE
+                break
             pw.play(color, move)
 
         else:
             move = pw.genmove(color)
+            if move == None:
+                result = Color.BLACK
+                break
             pb.play(color, move)
 
         move = move.lower()
@@ -215,6 +243,8 @@ def play_game(meta_str, p1, p2, ps, dim, pgn_file):
 
     inst1.stop()
 
+    scorer.stop()
+
     print('%s (black) versus %s (white) result: %s' % (name1, name2, result))
 
 def process_entry(q, scorer, dim, pgn_file):
@@ -278,7 +308,7 @@ start_cpu_time_ts = start_cpu_time.user + start_cpu_time.system
 
 start_ts = time.time()
 
-iterations = 1000
+iterations = 100
 concurrency = 16
 play_batch(engines, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn', concurrency, iterations)
 
