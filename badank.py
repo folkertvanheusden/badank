@@ -255,6 +255,7 @@ def play_game(meta_str, p1, p2, ps, dim, pgn_file):
     name2 = inst2.getname()
 
     logger.info('%s%s versus %s started' % (meta_str, name1, name2))
+    start_ts = time.time()
 
     try:
         result = play(inst1, inst2, dim, scorer).lower()
@@ -276,13 +277,14 @@ def play_game(meta_str, p1, p2, ps, dim, pgn_file):
     except Exception as e:
         logger.exception('exception during play (%s)' % e)
 
+    end_ts = time.time()
+    logger.info('%s (black) versus %s (white) result: %s, took: %fs' % (name1, name2, result, end_ts - start_ts))
+
     inst2.stop()
 
     inst1.stop()
 
     scorer.stop()
-
-    logger.info('%s (black) versus %s (white) result: %s' % (name1, name2, result))
 
 def process_entry(q, scorer, dim, pgn_file):
     while True:
