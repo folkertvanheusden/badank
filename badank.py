@@ -1,8 +1,12 @@
 #! /usr/bin/python3
 
 from enum import Enum
+from queue import Queue
 import subprocess
+from threading import Lock, Thread
 import time
+
+pgn_file_lock = Lock()
 
 class Color(Enum):
     WHITE = 1
@@ -143,7 +147,7 @@ def play(pb, pw, board_size, scorer):
             pb.play(color, move)
 
         move = move.lower()
-        print(color, move)
+        #print(color, move)
 
         scorer.play(color, move)
 
@@ -188,7 +192,7 @@ def play_game(p1, p2, ps, dim, pgn_file):
     inst2 = GtpEngine(p2[0], p2[1])
     name2 = inst2.getname()
 
-    print('%s versus %s' % (name1, name2))
+    print('%s versus %s started' % (name1, name2))
 
     result = play(inst1, inst2, dim, scorer).lower()
     print(result)
@@ -200,26 +204,53 @@ def play_game(p1, p2, ps, dim, pgn_file):
     else:
         result_pgn = '1/2-1/2'
 
-    # TODO apply locking around pgn_file access
+    pgn_file_lock.acquire()
     h = open(pgn_file, 'a')
     h.write('[White "%s"]\n[Black "%s"]\n[Result "%s"]\n\n%s\n\n' % (name2 if p2[2] is None else p2[2], name1 if p1[2] is None else p1[2], result_pgn, result_pgn))
     h.close()
+    pgn_file_lock.release()
 
     inst2.stop()
 
     inst1.stop()
 
-def play_batch(engines, scorer, dim, pgn_file):
+    print('%s (black) versus %s (white) result: %s' % (name1, name2, result))
+
+def process_entry(q, scorer, dim, pgn_file):
+    while True:
+        entry = q.get()
+        if entry == None:
+            break
+
+        play_game(entry[0], entry[1], scorer, dim, pgn_file)
+
+def play_batch(engines, scorer, dim, pgn_file, concurrency):
     n = len(engines)
 
     print('Will play %d games' % (n * (n - 1)))
+
+    q = Queue()
 
     for a in range(0, n):
         for b in range(0, n):
             if a == b:
                 continue
 
-            play_game(engines[a], engines[b], scorer, dim, pgn_file)
+            q.put((engines[a], engines[b]))
+
+    threads = []
+
+    for i in range(0, concurrency):
+        th = Thread(target=process_entry, args=(q, scorer, dim, pgn_file, ))
+        th.start()
+
+        threads.append(th)
+
+    for i in range(0, concurrency):
+        q.put(None)
+
+    for th in threads:
+        th.join()
 
 engines = []
 engines.append((['/usr/bin/java', '-jar', '/home/folkert/Projects/stop/trunk/stop.jar', '--mode', 'gtp'], None, None))
@@ -228,6 +259,6 @@ engines.append((['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, 
 
 engines.append((['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, None))
 
-engines.append((['/usr/games/gnugo', '--mode', 'gtp', '--level', '0'], None, 'GnuGO level 1'))
+engines.append((['/usr/games/gnugo', '--mode', 'gtp', '--level', '0'], None, 'GnuGO level 0'))
 
-play_batch(engines, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn')
+play_batch(engines, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn', 16)
