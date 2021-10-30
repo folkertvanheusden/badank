@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 
 from enum import Enum
+import psutil
 from queue import Queue
 import subprocess
 from threading import Lock, Thread
@@ -195,7 +196,7 @@ def play_game(p1, p2, ps, dim, pgn_file):
     print('%s versus %s started' % (name1, name2))
 
     result = play(inst1, inst2, dim, scorer).lower()
-    print(result)
+    # print(result)
 
     if result[0] == 'b':
         result_pgn = '0-1'
@@ -261,4 +262,19 @@ engines.append((['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None
 
 engines.append((['/usr/games/gnugo', '--mode', 'gtp', '--level', '0'], None, 'GnuGO level 0'))
 
+start_cpu_time = psutil.cpu_times()
+start_cpu_time_ts = start_cpu_time.user + start_cpu_time.system
+
+start_ts = time.time()
+
 play_batch(engines, ['/usr/games/gnugo', '--mode', 'gtp'], 9, 'test.pgn', 16)
+
+end_cpu_time = psutil.cpu_times()
+end_cpu_time_ts = end_cpu_time.user + end_cpu_time.system
+
+end_ts = time.time()
+
+diff_ts = end_ts - start_ts
+diff_cpu_time_ts = end_cpu_time_ts - start_cpu_time_ts
+
+print('Took %fs, cpu usage: %fs (%f)' % (diff_ts, diff_cpu_time_ts, diff_cpu_time_ts / diff_ts))
