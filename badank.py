@@ -45,9 +45,9 @@ class TextProgram:
         self.name = program
 
         if dir_ is None:
-            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         else:
-            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=dir_)
+            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, cwd=dir_)
 
     def read(self, timeout = None):
         try:
@@ -337,6 +337,10 @@ engines.append((['/home/folkert/Projects/baduck/build/src/donaldbaduck'], None, 
 engines.append((['/home/folkert/Projects/daffyduck/build/src/daffybaduck'], None, None))
 
 engines.append((['/usr/games/gnugo', '--mode', 'gtp', '--level', '0'], None, 'GnuGO level 0'))
+
+engines.append((['/home/folkert/amigogtp-1.8/amigogtp/amigogtp'], None, None))
+
+engines.append((['/home/folkert/Pachi/pachi-12.60-i686', '-e', 'pattern', '-t', '1'], '/home/folkert/Pachi', 'Pachi pattern'))
 
 start_cpu_time = psutil.cpu_times()
 start_cpu_time_ts = start_cpu_time.user + start_cpu_time.system
