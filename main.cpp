@@ -3,8 +3,11 @@
 #include <signal.h>
 #include <string>
 #include <thread>
+#include <sys/resource.h>
+#include <sys/time.h>
 
 #include "color.h"
+#include "error.h"
 #include "gtp.h"
 #include "log.h"
 #include "queue.h"
@@ -210,14 +213,14 @@ void play_batch(const std::vector<engine_parameters_t> & engines, const engine_p
 
 int main(int argc, char *argv[])
 {
-	setlog("badank.log", debug, info);
+	setlog("badank.log", info, info);
 
 	engine_parameters_t p1 { "/home/folkert/Projects/baduck/build/src/donaldbaduck", "/tmp", "" };
 	engine_parameters_t p2 { "/usr/bin/java -jar /home/folkert/Projects/stop/trunk/stop.jar --mode gtp", "/tmp", "" };
 	engine_parameters_t p3 { "/home/folkert/Projects/daffyduck/build/src/daffybaduck", "/tmp", "" };
 	engine_parameters_t p4 { "/usr/games/gnugo --mode gtp --level 0", "/tmp", "GnuGO level 0" };
 	engine_parameters_t p5 { "/home/folkert/amigogtp-1.8/amigogtp/amigogtp", "/tmp", "" };
-	engine_parameters_t p6 { "/home/folkert/Pachi/pachi-12.60-i686 -e pattern -t 1 -D", "/home/folkert/Pachi", "Pachi pattern" };
+//	engine_parameters_t p6 { "/home/folkert/Pachi/pachi-12.60-i686 -e pattern -t 1 -D", "/home/folkert/Pachi", "Pachi pattern" };
 	engine_parameters_t scorer { "/usr/games/gnugo --mode gtp", "/tmp" };
 
 	std::vector<engine_parameters_t> engines;
@@ -226,11 +229,22 @@ int main(int argc, char *argv[])
 	engines.push_back(p3);
 	engines.push_back(p4);
 	engines.push_back(p5);
-	engines.push_back(p6);
+//	engines.push_back(p6);
 
 	signal(SIGPIPE, SIG_IGN);
 
-	play_batch(engines, scorer, 9, "test2.pgn", 16, 100);
+	uint64_t start_ts = get_ts_ms();
+	play_batch(engines, scorer, 9, "test2.pgn", 16, 2);
+	uint64_t end_ts = get_ts_ms();
+	uint64_t took_ts = end_ts - start_ts;
+
+	struct rusage ru;
+	if (getrusage(RUSAGE_CHILDREN, &ru) == -1)
+		error_exit(true, "getrusage failed");
+
+	uint64_t child_ts = ru.ru_utime.tv_sec * 1000 + ru.ru_utime.tv_usec / 1000;
+
+	dolog(info, "Time used: %fs, cpu factor child processes: %f", took_ts / 1000.0, child_ts / double(took_ts));
 
 	return 0;
 }
