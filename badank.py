@@ -45,9 +45,9 @@ class TextProgram:
         self.name = program
 
         if dir_ is None:
-            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
         else:
-            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, cwd=dir_)
+            self.proc = subprocess.Popen(program, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0, cwd=dir_)
 
     def read(self, timeout = None):
         try:
@@ -76,6 +76,7 @@ class TextProgram:
 
         try:
             self.proc.wait(timeout=1.0)
+
         except TimeoutExpired as te:
             logger.warning('Forcibly terminating %s (%s)' % (self.name[0], self.name))
             self.proc.terminate()
@@ -93,7 +94,7 @@ class GtpEngine:
 
     def getresponse(self):
         while True:
-            line = self.engine.read(30)  # FIXME 30 seconds hardcoded timeout
+            line = self.engine.read()# 30)  # FIXME 30 seconds hardcoded timeout
             if line == '':
                 continue
 
@@ -142,16 +143,6 @@ class GtpEngine:
     def stop(self):
         self.engine.stop()
 
-class Board:
-    def __init__(self, dim):
-        self.b = [ [ None ] * dim ] * dim
-
-    def get(self, coordinates):
-        return self.b[coordinates[1]][coordinates[0]]
-
-    def set(self, coordinates, what):
-        self.b[coordinates[1]][coordinates[0]] = what
-
 class Scorer:
     def __init__(self, program):
         self.p = GtpEngine(program)
@@ -169,19 +160,8 @@ class Scorer:
     def stop(self):
         self.p.stop()
 
-def gtp_vertex_to_coordinates(s):
-    x = ord(s[0]) - ord('a')
-    if s[0] >= 'i':
-        x -= 1
-
-    y = ord(s[1]) - ord('1')
-
-    return (x, y)
-
 def play(pb, pw, board_size, scorer):
     scorer.restart(board_size)
-
-    b = Board(board_size)
 
     pb.boardsize(board_size)
     pw.boardsize(board_size)
@@ -229,11 +209,6 @@ def play(pb, pw, board_size, scorer):
 
             break
 
-        else:
-            coordinates = gtp_vertex_to_coordinates(move)
-
-            b.set(coordinates, color)
-
         if color == Color.BLACK:
             color = Color.WHITE
         else:
@@ -254,30 +229,36 @@ def play_game(meta_str, p1, p2, ps, dim, pgn_file):
     name2 = inst2.getname()
 
     logger.info('%s%s versus %s started' % (meta_str, name1, name2))
+    start_ts = time.time()
 
-    result = play(inst1, inst2, dim, scorer).lower()
-    # print(result)
+    try:
+        result = play(inst1, inst2, dim, scorer).lower()
+        # print(result)
 
-    if result[0] == 'b':
-        result_pgn = '0-1'
-    elif result[0] == 'w':
-        result_pgn = '1-0'
-    else:
-        result_pgn = '1/2-1/2'
+        if result[0] == 'b':
+            result_pgn = '0-1'
+        elif result[0] == 'w':
+            result_pgn = '1-0'
+        else:
+            result_pgn = '1/2-1/2'
 
-    pgn_file_lock.acquire()
-    h = open(pgn_file, 'a')
-    h.write('[White "%s"]\n[Black "%s"]\n[Result "%s"]\n\n%s\n\n' % (name2 if p2[2] is None else p2[2], name1 if p1[2] is None else p1[2], result_pgn, result_pgn))
-    h.close()
-    pgn_file_lock.release()
+        pgn_file_lock.acquire()
+        h = open(pgn_file, 'a')
+        h.write('[White "%s"]\n[Black "%s"]\n[Result "%s"]\n\n%s\n\n' % (name2 if p2[2] is None else p2[2], name1 if p1[2] is None else p1[2], result_pgn, result_pgn))
+        h.close()
+        pgn_file_lock.release()
+
+    except Exception as e:
+        logger.exception('exception during play (%s)' % e)
+
+    end_ts = time.time()
+    logger.info('%s (black) versus %s (white) result: %s, took: %fs' % (name1, name2, result, end_ts - start_ts))
 
     inst2.stop()
 
     inst1.stop()
 
     scorer.stop()
-
-    logger.info('%s (black) versus %s (white) result: %s' % (name1, name2, result))
 
 def process_entry(q, scorer, dim, pgn_file):
     while True:
