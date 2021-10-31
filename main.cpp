@@ -1,10 +1,15 @@
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 
 #include "color.h"
 #include "gtp.h"
+#include "queue.h"
 #include "str.h"
 #include "time.h"
+
+std::mutex pgn_file_lock;
 
 std::optional<std::string> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer)
 {
@@ -118,11 +123,13 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 	else if (result.at(0) == 'w')
 		result_pgn = "1-0";
 
+	pgn_file_lock.lock();
 	FILE *fh = fopen(pgn_file.c_str(), "a+");
 	if (fh) {
 		fprintf(fh, "[White \"%s\"]\n[Black \"%s\"]\n[Result \"%s\"]\n\n%s\n\n", name2.c_str(), name1.c_str(), result_pgn.c_str(), result_pgn.c_str());
 		fclose(fh);
 	}
+	pgn_file_lock.unlock();
 
 	uint64_t end_ts = get_ts_ms();
 
@@ -135,13 +142,76 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 	delete scorer;
 }
 
+typedef struct {
+	engine_parameters_t p1, p2;
+	int nr;
+} work_t;
+
+Queue<work_t> q;
+
+void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file)
+{
+	for(;;) {
+		work_t entry = q.pop();
+		if (entry.p1.command.empty())
+			break;
+
+		std::string meta = myformat("%d> ", entry.nr);
+
+		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file);
+	}
+}
+
+void play_batch(const std::vector<engine_parameters_t> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const int concurrency, const int iterations)
+{
+	printf("Batch starting\n");
+
+	size_t n = engines.size();
+
+	printf("Will play %ld games\n", n * (n - 1) * iterations);
+
+	std::vector<std::thread *> threads;
+
+	for(int i=0; i<concurrency; i++) {
+		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file);
+		threads.push_back(th);
+	}
+
+	int nr = 0;
+
+	for(int i=0; i<iterations; i++) {
+		for(size_t a=0; a<n; a++) {
+			for(size_t b=0; b<n; b++) {
+				if (a == b)
+					continue;
+
+				q.push({engines[a], engines[b], nr});
+				nr++;
+			}
+		}
+	}
+
+	engine_parameters_t ep;
+
+	for(int i=0; i<concurrency; i++)
+		q.push({ep, ep, -1});
+
+    	printf("Waiting for threads to finish...\n");
+
+	for(std::thread *th : threads) {
+		th->join();
+		delete th;
+	}
+
+    	printf("Batch finished\n");
+}
+
 int main(int argc, char *argv[])
 {
 	engine_parameters_t p1 { "/home/folkert/Projects/baduck/build/src/donaldbaduck", "/tmp" };
 	engine_parameters_t p2 { "/usr/bin/java -jar /home/folkert/Projects/stop/trunk/stop.jar --mode gtp", "/tmp" };
 	engine_parameters_t scorer { "/usr/games/gnugo --mode gtp", "/tmp" };
 
-	play_game("> ", p1, p2, scorer, 9, "test2.pgn");
 
 	return 0;
 }
