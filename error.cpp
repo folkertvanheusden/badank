@@ -5,6 +5,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "log.h"
+
 void error_exit(const bool se, const char *const format, ...)
 {
 	int e = errno;
@@ -18,10 +20,15 @@ void error_exit(const bool se, const char *const format, ...)
 
 	fprintf(stderr, "%s\n", buffer);
 
-	free(buffer);
-
-	if (se)
+	if (se) {
 		fprintf(stderr, "%s\n", strerror(e));
+		dolog(error, "%s (%s)", buffer, strerror(e));
+	}
+	else {
+		dolog(error, "%s", buffer);
+	}
+
+	free(buffer);
 
 	exit(1);
 }

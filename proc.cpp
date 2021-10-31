@@ -1,7 +1,9 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
 #include <string>
+#include <string.h>
 #include <tuple>
 #include <unistd.h>
 #include <vector>
@@ -10,6 +12,7 @@
 #include <sys/wait.h>
 
 #include "error.h"
+#include "log.h"
 #include "proc.h"
 #include "str.h"
 #include "time.h"
@@ -43,7 +46,8 @@ std::tuple<pid_t, int, int> exec_with_pipe(const std::string & command, const st
 	if (pid == 0) {
 		setsid();
 
-		chdir(dir.c_str());  // TODO log if fail
+		if (dir.empty() == false && chdir(dir.c_str()) == -1)
+			dolog(warning, "chdir to %s for %s failed: %s", dir.c_str(), command.c_str(), strerror(errno));
 
 		close(0);
 
@@ -87,6 +91,8 @@ TextProgram::TextProgram(const std::string & command, const std::string & dir)
 	pid = std::get<0>(prc);
 	w = std::get<1>(prc);
 	r = std::get<2>(prc);
+
+	dolog(debug, "Started \"%s\" with pid %d", command.c_str(), pid);
 }
 
 TextProgram::~TextProgram()
@@ -109,17 +115,17 @@ TextProgram::~TextProgram()
 			break;
 
 		if (i == 0) {
-			// TODO LOG
+			dolog(debug, "Sending SIGTERM to process %d", pid);
 			kill(pid, SIGTERM);
 			mymsleep(500);
 		}
 		else if (i == 1) {
-			// TODO LOG
+			dolog(debug, "Sending SIGKILL to process %d", pid);
 			kill(pid, SIGKILL);
 			mymsleep(100);
 		}
 		else {
-			// TODO log
+			dolog(warning, "Failed to terminate process %d", pid);
 		}
 	}
 }
@@ -133,7 +139,7 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 	if (timeout_ms.has_value())
 		use_to_ms = timeout_ms.value();
 
-	// printf("Use time: %d\n", use_to_ms);
+	dolog(debug, "%d] use time: %d", pid, use_to_ms);
 
 	uint64_t start_ms = get_ts_ms();
 
@@ -141,7 +147,7 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 
 	for(;;) {
 		int64_t time_left = use_to_ms == -1 ? 86400000 : (start_ms + use_to_ms - get_ts_ms());
-		// printf("Time left: %ld\n", time_left);
+		dolog(debug, "%d] time left: %ld", pid, time_left);
 		if (time_left < 0)
 			break;
 

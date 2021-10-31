@@ -3,10 +3,11 @@
 
 #include "color.h"
 #include "gtp.h"
+#include "log.h"
 #include "proc.h"
 #include "str.h"
 
-GtpEngine::GtpEngine(const std::string & program, const std::string & dir)
+GtpEngine::GtpEngine(const std::string & program, const std::string & dir, const std::string & alt_name) : program(program), name(alt_name)
 {
 	engine = new TextProgram(program, dir);
 }
@@ -20,10 +21,14 @@ std::optional<std::string> GtpEngine::getresponse(const std::optional<int> timeo
 {
 	for(;;) {
 		auto rc = engine->read(timeout_ms);
-		if (rc.has_value() == false)
+		if (rc.has_value() == false) {
+			dolog(warning, "Failed reading from %s", name.c_str());
 			return { };
+		}
 
 		if (rc.value().size() >= 1) {
+			dolog(debug, "%s> %s", name.c_str(), rc.value());
+
 			if (rc.value().at(0) == '=')
 				return trim(rc.value().substr(1));
 		}
@@ -33,6 +38,8 @@ std::optional<std::string> GtpEngine::getresponse(const std::optional<int> timeo
 std::optional<std::string> GtpEngine::genmove(const color_t c, const std::optional<int> timeout_ms)
 {
 	std::string cmd = myformat("genmove %c", c == C_WHITE ? 'w' : 'b');
+
+	dolog(debug, "%s< %s", name.c_str(), cmd.c_str());
 
 	if (engine->write(cmd))
 		return getresponse({ });
@@ -44,6 +51,8 @@ bool GtpEngine::play(const color_t c, const std::string & vertex)
 {
 	std::string cmd = myformat("play %c %s", c == C_WHITE ? 'w' : 'b', vertex.c_str());
 
+	dolog(debug, "%s< %s", name.c_str(), cmd.c_str());
+
 	if (engine->write(cmd))
 		return getresponse({ }).has_value();
 
@@ -52,6 +61,8 @@ bool GtpEngine::play(const color_t c, const std::string & vertex)
 
 bool GtpEngine::boardsize(const int dim)
 {
+	dolog(debug, "%s> set board size to %d", name.c_str(), dim);
+
 	if (engine->write(myformat("boardsize %d", dim)))
 		return getresponse({ }).has_value();
 
@@ -74,16 +85,16 @@ std::optional<std::string> GtpEngine::getscore()
 	return { };
 }
 
-std::optional<std::string> GtpEngine::getname()
+std::string GtpEngine::getname()
 {
-	if (engine->write("name")) {
+	if (name.empty() && engine->write("name")) {
 		auto rc = getresponse({ });
 
-		if (rc.has_value()) {
+		if (rc.has_value())
 			name = rc.value();
-			return name;
-		}
+		else
+			name = program;
 	}
 
-	return { };
+	return name;
 }
