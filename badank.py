@@ -142,16 +142,6 @@ class GtpEngine:
     def stop(self):
         self.engine.stop()
 
-class Board:
-    def __init__(self, dim):
-        self.b = [ [ None ] * dim ] * dim
-
-    def get(self, coordinates):
-        return self.b[coordinates[1]][coordinates[0]]
-
-    def set(self, coordinates, what):
-        self.b[coordinates[1]][coordinates[0]] = what
-
 class Scorer:
     def __init__(self, program):
         self.p = GtpEngine(program)
@@ -169,19 +159,8 @@ class Scorer:
     def stop(self):
         self.p.stop()
 
-def gtp_vertex_to_coordinates(s):
-    x = ord(s[0]) - ord('a')
-    if s[0] >= 'i':
-        x -= 1
-
-    y = ord(s[1]) - ord('1')
-
-    return (x, y)
-
 def play(pb, pw, board_size, scorer):
     scorer.restart(board_size)
-
-    b = Board(board_size)
 
     pb.boardsize(board_size)
     pw.boardsize(board_size)
@@ -228,11 +207,6 @@ def play(pb, pw, board_size, scorer):
                 result = "B"
 
             break
-
-        else:
-            coordinates = gtp_vertex_to_coordinates(move)
-
-            b.set(coordinates, color)
 
         if color == Color.BLACK:
             color = Color.WHITE
