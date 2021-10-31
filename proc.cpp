@@ -97,7 +97,7 @@ TextProgram::~TextProgram()
 	for(int i=0; i<3; i++) {
 		// TODO handle status (now nullptr)
 		int rc = waitpid(pid, nullptr, WNOHANG);
-		printf("%d: %d\n", pid, rc);
+
 		if (rc == -1)
 			error_exit(true, "waitpid failed");
 
@@ -129,7 +129,7 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 	if (timeout_ms.has_value())
 		use_to_ms = timeout_ms.value();
 
-	printf("Use time: %d\n", use_to_ms);
+	// printf("Use time: %d\n", use_to_ms);
 
 	uint64_t start_ms = get_ts_ms();
 
@@ -137,7 +137,7 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 
 	for(;;) {
 		int64_t time_left = use_to_ms == -1 ? 86400000 : (start_ms + use_to_ms - get_ts_ms());
-		printf("Time left: %ld\n", time_left);
+		// printf("Time left: %ld\n", time_left);
 		if (time_left < 0)
 			break;
 

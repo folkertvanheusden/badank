@@ -11,6 +11,7 @@ add_executable(
   badank
   error.cpp
   gtp.cpp
+  main.cpp
   proc.cpp
   str.cpp
   time.cpp
