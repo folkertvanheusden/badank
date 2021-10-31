@@ -88,7 +88,7 @@ std::optional<std::string> play(GtpEngine *const pb, GtpEngine *const pw, const 
 }
 
 typedef struct {
-	std::string command, directory;
+	std::string command, directory, alt_name;
 } engine_parameters_t;
 
 void play_game(const std::string & meta_str, const engine_parameters_t & p1, const engine_parameters_t & p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file)
@@ -99,13 +99,13 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 	auto name1rc = inst1->getname();
 	if (name1rc.has_value() == false)
 		return;
-	std::string name1 = name1rc.value();
+	std::string name1 = p1.alt_name.empty() ? name1rc.value() : p1.alt_name;
 
 	GtpEngine *inst2 = new GtpEngine(p2.command, p2.directory);
 	auto name2rc = inst2->getname();
 	if (name2rc.has_value() == false)
 		return;
-	std::string name2 = name2rc.value();
+	std::string name2 = p2.alt_name.empty() ? name2rc.value() : p2.alt_name;
 
 	printf("%s%s versus %s started\n", meta_str.c_str(), name1.c_str(), name2.c_str());
 
