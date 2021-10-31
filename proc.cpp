@@ -91,6 +91,10 @@ TextProgram::TextProgram(const std::string & command, const std::string & dir)
 
 TextProgram::~TextProgram()
 {
+	write("quit");
+
+	mymsleep(100);
+
 	close(r);
 	close(w);
 
@@ -107,12 +111,12 @@ TextProgram::~TextProgram()
 		if (i == 0) {
 			// TODO LOG
 			kill(pid, SIGTERM);
-			sleep(1);
+			mymsleep(500);
 		}
 		else if (i == 1) {
 			// TODO LOG
 			kill(pid, SIGKILL);
-			sleep(1);
+			mymsleep(100);
 		}
 		else {
 			// TODO log
