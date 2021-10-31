@@ -10,6 +10,7 @@ add_compile_options(-Wall)
 add_executable(
   badank
   error.cpp
+  gtp.cpp
   proc.cpp
   str.cpp
   time.cpp
@@ -18,6 +19,7 @@ add_executable(
 add_executable(
   badank_test
   error.cpp
+  gtp.cpp
   proc.cpp
   str.cpp
   test.cpp
