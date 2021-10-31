@@ -11,6 +11,7 @@ add_executable(
   badank
   error.cpp
   gtp.cpp
+  log.cpp
   main.cpp
   proc.cpp
   str.cpp
@@ -21,6 +22,7 @@ add_executable(
   badank_test
   error.cpp
   gtp.cpp
+  log.cpp
   proc.cpp
   str.cpp
   test.cpp

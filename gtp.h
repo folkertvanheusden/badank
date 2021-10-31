@@ -7,13 +7,14 @@
 class GtpEngine
 {
 private:
+	const std::string program;
 	std::string name;
 	TextProgram *engine { nullptr };
 
 	std::optional<std::string> getresponse(const std::optional<int> timeout_ms);
 
 public:
-	GtpEngine(const std::string & program, const std::string & dir);
+	GtpEngine(const std::string & program, const std::string & dir, const std::string & alt_name);
 	~GtpEngine();
 
 	std::optional<std::string> genmove(const color_t c, const std::optional<int> timeout_ms);
@@ -24,5 +25,5 @@ public:
 
 	std::optional<std::string> getscore();
 
-	std::optional<std::string> getname();
+	std::string getname();
 };

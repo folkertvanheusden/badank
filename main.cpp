@@ -6,6 +6,7 @@
 
 #include "color.h"
 #include "gtp.h"
+#include "log.h"
 #include "queue.h"
 #include "str.h"
 #include "time.h"
@@ -16,7 +17,6 @@ std::optional<std::string> play(GtpEngine *const pb, GtpEngine *const pw, const 
 {
 	scorer->boardsize(dim);
 	pb->boardsize(dim);
-
 	pw->boardsize(dim);
 
 	int whitePass = 0, blackPass = 0;
@@ -32,6 +32,7 @@ std::optional<std::string> play(GtpEngine *const pb, GtpEngine *const pw, const 
 			auto rc = pb->genmove(color, { });
 
 			if (rc.has_value() == false) {
+				dolog(info, "Black (%s) stopped responding, white (%s) wins", pb->getname().c_str(), pw->getname().c_str());
 				result = "W";
 				break;
 			}
@@ -44,6 +45,7 @@ std::optional<std::string> play(GtpEngine *const pb, GtpEngine *const pw, const 
 			auto rc = pw->genmove(color, { });
 
 			if (rc.has_value() == false) {
+				dolog(info, "White (%s) stopped responding, black (%s) wins", pw->getname().c_str(), pb->getname().c_str());
 				result = "B";
 				break;
 			}
@@ -94,36 +96,21 @@ typedef struct {
 
 void play_game(const std::string & meta_str, const engine_parameters_t & p1, const engine_parameters_t & p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file)
 {
-	GtpEngine *scorer = new GtpEngine(ps.command, ps.directory);
+	GtpEngine *scorer = new GtpEngine(ps.command, ps.directory, "");
 
-	GtpEngine *inst1 = new GtpEngine(p1.command, p1.directory);
-	auto name1rc = inst1->getname();
-	if (name1rc.has_value() == false) {
-		printf("Cannot get name from %s\n", p1.command.c_str());
-		delete inst1;
-		delete scorer;
-		return;
-	}
-	std::string name1 = p1.alt_name.empty() ? name1rc.value() : p1.alt_name;
+	GtpEngine *inst1 = new GtpEngine(p1.command, p1.directory, p1.alt_name);
+	std::string name1 = inst1->getname();
 
-	GtpEngine *inst2 = new GtpEngine(p2.command, p2.directory);
-	auto name2rc = inst2->getname();
-	if (name2rc.has_value() == false) {
-		printf("Cannot get name from %s\n", p2.command.c_str());
-		delete inst2;
-		delete inst1;
-		delete scorer;
-		return;
-	}
-	std::string name2 = p2.alt_name.empty() ? name2rc.value() : p2.alt_name;
+	GtpEngine *inst2 = new GtpEngine(p2.command, p2.directory, p2.alt_name);
+	std::string name2 = inst2->getname();
 
-	printf("%s%s versus %s started\n", meta_str.c_str(), name1.c_str(), name2.c_str());
+	dolog(info, "%s%s versus %s started", meta_str.c_str(), name1.c_str(), name2.c_str());
 
 	uint64_t start_ts = get_ts_ms();
 
 	auto resultrc = play(inst1, inst2, dim, scorer);
 	if (resultrc.has_value() == false) {
-		printf("Game between %s and %s failed\n", name1.c_str(), name2.c_str());
+		dolog(info, "Game between %s and %s failed", name1.c_str(), name2.c_str());
 		delete inst2;
 		delete inst1;
 		delete scorer;
@@ -148,7 +135,7 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 
 	uint64_t end_ts = get_ts_ms();
 
-	printf("%s (black) versus %s (white) result: %s, took: %fs\n", name1.c_str(), name2.c_str(), result.c_str(), (end_ts - start_ts) / 1000.0);
+	dolog(info, "%s (black) versus %s (white) result: %s, took: %fs", name1.c_str(), name2.c_str(), result.c_str(), (end_ts - start_ts) / 1000.0);
 
 	delete inst2;
 
@@ -179,11 +166,11 @@ void processing_thread(const engine_parameters_t & scorer, const int dim, const 
 
 void play_batch(const std::vector<engine_parameters_t> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const int concurrency, const int iterations)
 {
-	printf("Batch starting\n");
+	dolog(info, "Batch starting");
 
 	size_t n = engines.size();
 
-	printf("Will play %ld games\n", n * (n - 1) * iterations);
+	dolog(info, "Will play %ld games", n * (n - 1) * iterations);
 
 	std::vector<std::thread *> threads;
 
@@ -211,18 +198,20 @@ void play_batch(const std::vector<engine_parameters_t> & engines, const engine_p
 	for(int i=0; i<concurrency; i++)
 		q.push({ep, ep, -1});
 
-    	printf("Waiting for threads to finish...\n");
+    	dolog(info, "Waiting for threads to finish...");
 
 	for(std::thread *th : threads) {
 		th->join();
 		delete th;
 	}
 
-    	printf("Batch finished\n");
+    	dolog(info, "Batch finished");
 }
 
 int main(int argc, char *argv[])
 {
+	setlog("badank.log", debug, info);
+
 	engine_parameters_t p1 { "/home/folkert/Projects/baduck/build/src/donaldbaduck", "/tmp", "" };
 	engine_parameters_t p2 { "/usr/bin/java -jar /home/folkert/Projects/stop/trunk/stop.jar --mode gtp", "/tmp", "" };
 	engine_parameters_t p3 { "/home/folkert/Projects/daffyduck/build/src/daffybaduck", "/tmp", "" };
