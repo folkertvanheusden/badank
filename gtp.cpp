@@ -27,7 +27,7 @@ std::optional<std::string> GtpEngine::getresponse(const std::optional<int> timeo
 		}
 
 		if (rc.value().size() >= 1) {
-			dolog(debug, "%s> %s", name.c_str(), rc.value());
+			dolog(debug, "%s> %s", name.c_str(), rc.value().c_str());
 
 			if (rc.value().at(0) == '=')
 				return trim(rc.value().substr(1));
