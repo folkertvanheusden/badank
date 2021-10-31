@@ -208,10 +208,23 @@ void play_batch(const std::vector<engine_parameters_t> & engines, const engine_p
 
 int main(int argc, char *argv[])
 {
-	engine_parameters_t p1 { "/home/folkert/Projects/baduck/build/src/donaldbaduck", "/tmp" };
-	engine_parameters_t p2 { "/usr/bin/java -jar /home/folkert/Projects/stop/trunk/stop.jar --mode gtp", "/tmp" };
+	engine_parameters_t p1 { "/home/folkert/Projects/baduck/build/src/donaldbaduck", "/tmp", "" };
+	engine_parameters_t p2 { "/usr/bin/java -jar /home/folkert/Projects/stop/trunk/stop.jar --mode gtp", "/tmp", "" };
+	engine_parameters_t p3 { "/home/folkert/Projects/daffyduck/build/src/daffybaduck", "/tmp", "" };
+	engine_parameters_t p4 { "/usr/games/gnugo --mode gtp --level 0", "/tmp", "GnuGO level 0" };
+	engine_parameters_t p5 { "/home/folkert/amigogtp-1.8/amigogtp/amigogtp", "/tmp", "" };
+	engine_parameters_t p6 { "/home/folkert/Pachi/pachi-12.60-i686 -e pattern -t 1 - D", "/home/folkert/Pachi", "Pachi pattern" };
 	engine_parameters_t scorer { "/usr/games/gnugo --mode gtp", "/tmp" };
 
+	std::vector<engine_parameters_t> engines;
+	engines.push_back(p1);
+	engines.push_back(p2);
+	engines.push_back(p3);
+	engines.push_back(p4);
+	engines.push_back(p5);
+	engines.push_back(p6);
+
+	play_batch(engines, scorer, 9, "test2.pgn", 16, 100);
 
 	return 0;
 }
