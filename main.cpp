@@ -1,5 +1,6 @@
 #include <mutex>
 #include <optional>
+#include <signal.h>
 #include <string>
 #include <thread>
 
@@ -97,14 +98,23 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 
 	GtpEngine *inst1 = new GtpEngine(p1.command, p1.directory);
 	auto name1rc = inst1->getname();
-	if (name1rc.has_value() == false)
+	if (name1rc.has_value() == false) {
+		printf("Cannot get name from %s\n", p1.command.c_str());
+		delete inst1;
+		delete scorer;
 		return;
+	}
 	std::string name1 = p1.alt_name.empty() ? name1rc.value() : p1.alt_name;
 
 	GtpEngine *inst2 = new GtpEngine(p2.command, p2.directory);
 	auto name2rc = inst2->getname();
-	if (name2rc.has_value() == false)
+	if (name2rc.has_value() == false) {
+		printf("Cannot get name from %s\n", p2.command.c_str());
+		delete inst2;
+		delete inst1;
+		delete scorer;
 		return;
+	}
 	std::string name2 = p2.alt_name.empty() ? name2rc.value() : p2.alt_name;
 
 	printf("%s%s versus %s started\n", meta_str.c_str(), name1.c_str(), name2.c_str());
@@ -112,8 +122,13 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 	uint64_t start_ts = get_ts_ms();
 
 	auto resultrc = play(inst1, inst2, dim, scorer);
-	if (resultrc.has_value() == false)
+	if (resultrc.has_value() == false) {
+		printf("Game between %s and %s failed\n", name1.c_str(), name2.c_str());
+		delete inst2;
+		delete inst1;
+		delete scorer;
 		return;
+	}
 	std::string result = str_tolower(resultrc.value());
 
 	std::string result_pgn = "1/2-1/2";
@@ -213,7 +228,7 @@ int main(int argc, char *argv[])
 	engine_parameters_t p3 { "/home/folkert/Projects/daffyduck/build/src/daffybaduck", "/tmp", "" };
 	engine_parameters_t p4 { "/usr/games/gnugo --mode gtp --level 0", "/tmp", "GnuGO level 0" };
 	engine_parameters_t p5 { "/home/folkert/amigogtp-1.8/amigogtp/amigogtp", "/tmp", "" };
-	engine_parameters_t p6 { "/home/folkert/Pachi/pachi-12.60-i686 -e pattern -t 1 - D", "/home/folkert/Pachi", "Pachi pattern" };
+	engine_parameters_t p6 { "/home/folkert/Pachi/pachi-12.60-i686 -e pattern -t 1 -D", "/home/folkert/Pachi", "Pachi pattern" };
 	engine_parameters_t scorer { "/usr/games/gnugo --mode gtp", "/tmp" };
 
 	std::vector<engine_parameters_t> engines;
@@ -223,6 +238,8 @@ int main(int argc, char *argv[])
 	engines.push_back(p4);
 	engines.push_back(p5);
 	engines.push_back(p6);
+
+	signal(SIGPIPE, SIG_IGN);
 
 	play_batch(engines, scorer, 9, "test2.pgn", 16, 100);
 
