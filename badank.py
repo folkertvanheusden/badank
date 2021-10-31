@@ -5,7 +5,7 @@ import logging
 import logging.handlers
 import psutil
 from queue import Queue
-from select import select
+import select
 import subprocess
 import sys
 from threading import Lock, Thread
@@ -52,22 +52,30 @@ class TextProgram:
     def read(self, timeout = None):
         try:
             if timeout != None:
-                poll_result = select([self.proc.stdout], [], [], timeout)[0]
-                if len(poll_result) == 0:
+                pollObj = select.poll()
+                pollObj.register(self.proc.stdout, select.POLLIN | select.POLLERR | select.POLLHUP)
+
+                rc = pollObj.poll(timeout)
+
+                if (rc[1] & select.POLLERR) or (rc[1] & select.POLLHUP):
                     logger.warning('Program %s did not respond in time (%fs) (%s)' % (self.name[0], timeout, self.name))
                     return None
 
             return self.proc.stdout.readline().decode('utf-8').rstrip('\n')
         
         except Exception as e:
-            logger.warning('Program %s crashed? (%s)' % (self.name[0], self.name))
+            logger.exception('Program %s crashed? (%s)' % (self.name[0], self.name))
 
             return None
 
     def write(self, what):
-        out = '%s\n\n' % what
-        self.proc.stdin.write(bytes(out, 'utf-8'))
-        self.proc.stdin.flush()
+        try:
+            out = '%s\n\n' % what
+            self.proc.stdin.write(bytes(out, 'utf-8'))
+            self.proc.stdin.flush()
+
+        except Exception as e:
+            logger.exception('write fail - program gone?')
 
     def stop(self):
         self.write('quit')
@@ -86,6 +94,8 @@ class TextProgram:
             except TimeoutExpired as te:
                 logger.warning('Forcibly killing %s (%s)' % (self.name[0], self.name))
                 self.proc.kill()
+
+        del self.proc
 
 class GtpEngine:
     def __init__(self, program, dir_ = None):
