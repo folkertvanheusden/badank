@@ -139,6 +139,7 @@ typedef struct {
 
 typedef struct _stats_t_ {
 	std::atomic_int ok { 0 }, error { 0 };
+	std::atomic_uint64_t ok_took { 0 };
 
 	_stats_t_() {
 	}
@@ -168,12 +169,19 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 		delete scorer;
 		return;
 	}
+
+	uint64_t end_ts = get_ts_ms();
+	uint64_t took = end_ts - start_ts;
+
 	std::string result = str_tolower(std::get<0>(resultrc).value());
 
-	if (std::get<2>(resultrc) == R_OK)
+	if (std::get<2>(resultrc) == R_OK) {
 		s->ok++;
-	else if (std::get<2>(resultrc) == R_ERROR)
+		s->ok_took += took;
+	}
+	else if (std::get<2>(resultrc) == R_ERROR) {
 		s->error++;
+	}
 
 	std::string result_pgn = "1/2-1/2";
 
@@ -219,8 +227,6 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 	}
 	game_file_lock.unlock();
 
-	uint64_t end_ts = get_ts_ms();
-
 	dolog(info, "%s (black; %f elo) versus %s (white; %f elo) result: %s, took: %fs", name1.c_str(), p1->rating.Rating1(), name2.c_str(), p2->rating.Rating1(), result.c_str(), (end_ts - start_ts) / 1000.0);
 
 	delete inst2;
@@ -241,8 +247,10 @@ void processing_thread(const engine_parameters_t & scorer, const int dim, const 
 {
 	for(;;) {
 		work_t entry = q.pop();
-		if (entry.p1->command.empty())
+		if (entry.p1->command.empty()) {
+			dolog(info, "Work finished, terminating thread");
 			break;
+		}
 
 		std::string meta = myformat("%d> ", entry.nr);
 
@@ -379,7 +387,8 @@ int main(int argc, char *argv[])
 
 	dolog(info, "Time used: %fs, cpu factor child processes: %f", took_ts / 1000.0, child_ts / double(took_ts));
 	int g_ok = s.ok, g_error = s.error;
-	dolog(info, "Games ok: %d, games with an error: %d", g_ok, g_error);
+	uint64_t g_ok_took = s.ok_took;
+	dolog(info, "Games ok: %d (avg duration: %.1fs), games with an error: %d", g_ok, g_ok_took / 1000.0 / g_ok, g_error);
 
 	dolog(info, "ratings:");
 	dolog(info, "-------");
