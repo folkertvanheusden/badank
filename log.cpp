@@ -1,4 +1,6 @@
-// (C) 2021 by folkert van heusden <mail@vanheusden.com>, released under Apache License v2.0
+// (C) 2021 by Folkert van Heusden <mail@vanheusden.com>
+// Released under Apache License v2.0
+
 #define _DEFAULT_SOURCE
 #include <errno.h>
 #include <fcntl.h>

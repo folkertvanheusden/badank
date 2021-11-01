@@ -1,3 +1,6 @@
+// (C) 2021 by Folkert van Heusden <mail@vanheusden.com>
+// Released under Apache License v2.0
+
 #include <libconfig.h++>
 #include <mutex>
 #include <optional>

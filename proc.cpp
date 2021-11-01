@@ -1,3 +1,6 @@
+// (C) 2021 by Folkert van Heusden <mail@vanheusden.com>
+// Released under Apache License v2.0
+
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
