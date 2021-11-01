@@ -1,6 +1,7 @@
 // (C) 2021 by Folkert van Heusden <mail@vanheusden.com>
 // Released under Apache License v2.0
 
+#include <atomic>
 #include <libconfig.h++>
 #include <mutex>
 #include <optional>
@@ -9,6 +10,7 @@
 #include <stdlib.h>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <sys/resource.h>
 #include <sys/time.h>
 
@@ -22,8 +24,10 @@
 
 std::mutex game_file_lock;
 
+typedef enum { R_OK, R_ERROR, R_TIMEOUT } run_result_t;
+
 // result, vector-of-sgf-moves
-std::pair<std::optional<std::string>, std::vector<std::string> > play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer)
+std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer)
 {
 	std::vector<std::string> sgf;
 
@@ -37,6 +41,8 @@ std::pair<std::optional<std::string>, std::vector<std::string> > play(GtpEngine 
 
 	std::optional<std::string> result;
 
+	run_result_t rr = R_OK;
+
 	for(;;) {
 		std::string move;
 
@@ -46,6 +52,7 @@ std::pair<std::optional<std::string>, std::vector<std::string> > play(GtpEngine 
 			if (rc.has_value() == false) {
 				dolog(info, "Black (%s) stopped responding, white (%s) wins", pb->getname().c_str(), pw->getname().c_str());
 				result = "W";
+				rr = R_ERROR;
 				break;
 			}
 
@@ -59,6 +66,7 @@ std::pair<std::optional<std::string>, std::vector<std::string> > play(GtpEngine 
 			if (rc.has_value() == false) {
 				dolog(info, "White (%s) stopped responding, black (%s) wins", pw->getname().c_str(), pb->getname().c_str());
 				result = "B";
+				rr = R_ERROR;
 				break;
 			}
 
@@ -118,14 +126,21 @@ std::pair<std::optional<std::string>, std::vector<std::string> > play(GtpEngine 
 	if (result.has_value() == false)
 		result = scorer->getscore();
 
-	return { result, sgf };
+	return { result, sgf, rr };
 }
 
 typedef struct {
 	std::string command, directory, alt_name;
 } engine_parameters_t;
 
-void play_game(const std::string & meta_str, const engine_parameters_t & p1, const engine_parameters_t & p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file, const std::string & sgf_file)
+typedef struct _stats_t_ {
+	std::atomic_int ok { 0 }, error { 0 };
+
+	_stats_t_() {
+	}
+} stats_t;
+
+void play_game(const std::string & meta_str, const engine_parameters_t & p1, const engine_parameters_t & p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s)
 {
 	GtpEngine *scorer = new GtpEngine(ps.command, ps.directory, "");
 
@@ -140,14 +155,19 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 	uint64_t start_ts = get_ts_ms();
 
 	auto resultrc = play(inst1, inst2, dim, scorer);
-	if (resultrc.first.has_value() == false) {
+	if (std::get<0>(resultrc).has_value() == false) {
 		dolog(info, "Game between %s and %s failed", name1.c_str(), name2.c_str());
 		delete inst2;
 		delete inst1;
 		delete scorer;
 		return;
 	}
-	std::string result = str_tolower(resultrc.first.value());
+	std::string result = str_tolower(std::get<0>(resultrc).value());
+
+	if (std::get<2>(resultrc) == R_OK)
+		s->ok++;
+	else if (std::get<2>(resultrc) == R_ERROR)
+		s->error++;
 
 	std::string result_pgn = "1/2-1/2";
 
@@ -170,7 +190,7 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 		if (fh) {
 			fprintf(fh, "(;PW[%s]\nPB[%s]\nRE[%s]\n(", name2.c_str(), name1.c_str(), str_toupper(result).c_str());
 
-			for(const std::string & vertex : resultrc.second)
+			for(const std::string & vertex : std::get<1>(resultrc))
 				fprintf(fh, ";%s", vertex.c_str());
 
 			fprintf(fh, ")\n)\n\n");
@@ -198,7 +218,7 @@ typedef struct {
 
 Queue<work_t> q;
 
-void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file)
+void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s)
 {
 	for(;;) {
 		work_t entry = q.pop();
@@ -207,11 +227,11 @@ void processing_thread(const engine_parameters_t & scorer, const int dim, const 
 
 		std::string meta = myformat("%d> ", entry.nr);
 
-		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file);
+		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file, s);
 	}
 }
 
-void play_batch(const std::vector<engine_parameters_t> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations)
+void play_batch(const std::vector<engine_parameters_t> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s)
 {
 	dolog(info, "Batch starting");
 
@@ -222,7 +242,7 @@ void play_batch(const std::vector<engine_parameters_t> & engines, const engine_p
 	std::vector<std::thread *> threads;
 
 	for(int i=0; i<concurrency; i++) {
-		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file);
+		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s);
 		threads.push_back(th);
 	}
 
@@ -325,8 +345,10 @@ int main(int argc, char *argv[])
 
 	test_config(eo);
 
+	stats_t s;
+
 	uint64_t start_ts = get_ts_ms();
-	play_batch(eo, scorer, dim, pgn_file, sgf_file, concurrency, n_games);
+	play_batch(eo, scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s);
 	uint64_t end_ts = get_ts_ms();
 	uint64_t took_ts = end_ts - start_ts;
 
@@ -337,6 +359,8 @@ int main(int argc, char *argv[])
 	uint64_t child_ts = ru.ru_utime.tv_sec * 1000 + ru.ru_utime.tv_usec / 1000;
 
 	dolog(info, "Time used: %fs, cpu factor child processes: %f", took_ts / 1000.0, child_ts / double(took_ts));
+	int g_ok = s.ok, g_error = s.error;
+	dolog(info, "Games ok: %d, games with an error: %d", g_ok, g_error);
 
 	dolog(info, " * Badank finished *");
 
