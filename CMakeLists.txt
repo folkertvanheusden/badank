@@ -33,3 +33,10 @@ set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 target_link_libraries(badank Threads::Threads)
+
+include(FindPkgConfig)
+
+pkg_check_modules(LIBCONFIG REQUIRED libconfig++)
+target_link_libraries(badank ${LIBCONFIG_LIBRARIES})
+target_include_directories(badank PUBLIC ${LIBCONFIG_INCLUDE_DIRS})
+target_compile_options(badank PUBLIC ${LIBCONFIG_CFLAGS_OTHER})

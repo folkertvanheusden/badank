@@ -1,3 +1,4 @@
+#include <libconfig.h++>
 #include <mutex>
 #include <optional>
 #include <signal.h>
@@ -215,26 +216,43 @@ int main(int argc, char *argv[])
 {
 	setlog("badank.log", info, info);
 
-	engine_parameters_t p1 { "/home/folkert/Projects/baduck/build/src/donaldbaduck", "/tmp", "" };
-	engine_parameters_t p2 { "/usr/bin/java -jar /home/folkert/Projects/stop/trunk/stop.jar --mode gtp", "/tmp", "" };
-	engine_parameters_t p3 { "/home/folkert/Projects/daffyduck/build/src/daffybaduck", "/tmp", "" };
-	engine_parameters_t p4 { "/usr/games/gnugo --mode gtp --level 0", "/tmp", "GnuGO level 0" };
-	engine_parameters_t p5 { "/home/folkert/amigogtp-1.8/amigogtp/amigogtp", "/tmp", "" };
-//	engine_parameters_t p6 { "/home/folkert/Pachi/pachi-12.60-i686 -e pattern -t 1 -D", "/home/folkert/Pachi", "Pachi pattern" };
-	engine_parameters_t scorer { "/usr/games/gnugo --mode gtp", "/tmp" };
+	std::vector<engine_parameters_t> eo;  // engine objects
 
-	std::vector<engine_parameters_t> engines;
-	engines.push_back(p1);
-	engines.push_back(p2);
-	engines.push_back(p3);
-	engines.push_back(p4);
-	engines.push_back(p5);
-//	engines.push_back(p6);
+	libconfig::Config cfg;
+	cfg.readFile("badank.cfg");
+
+	libconfig::Setting & root = cfg.getRoot();
+
+	libconfig::Setting & engines = root.lookup("engines");
+	size_t n_engines = engines.getLength();
+
+	for(size_t i=0; i<n_engines; i++) {
+		libconfig::Setting &engine_root = engines[i];
+
+		std::string command = (const char *)engine_root.lookup("command");
+		std::string dir = (const char *)engine_root.lookup("dir");
+		std::string alt_name = (const char *)engine_root.lookup("alt_name");
+
+		engine_parameters_t p { command, dir, alt_name };
+		eo.push_back(p);
+	}
+
+	std::string scorer_command = (const char *)root.lookup("scorer_command");
+	std::string scorer_dir = (const char *)root.lookup("scorer_dir");
+	engine_parameters_t scorer { scorer_command, scorer_dir, "" };
+
+	std::string pgn_file = (const char *)root.lookup("pgn_file");
+
+	int concurrency = cfg.lookup("concurrency");
+
+	int n_games = cfg.lookup("n_games");
+
+	int dim = cfg.lookup("board_size");
 
 	signal(SIGPIPE, SIG_IGN);
 
 	uint64_t start_ts = get_ts_ms();
-	play_batch(engines, scorer, 9, "test2.pgn", 16, 2);
+	play_batch(eo, scorer, dim, pgn_file, concurrency, n_games);
 	uint64_t end_ts = get_ts_ms();
 	uint64_t took_ts = end_ts - start_ts;
 
