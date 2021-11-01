@@ -20,10 +20,13 @@
 #include "str.h"
 #include "time.h"
 
-std::mutex pgn_file_lock;
+std::mutex game_file_lock;
 
-std::optional<std::string> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer)
+// result, vector-of-sgf-moves
+std::pair<std::optional<std::string>, std::vector<std::string> > play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer)
 {
+	std::vector<std::string> sgf;
+
 	scorer->boardsize(dim);
 	pb->boardsize(dim);
 	pw->boardsize(dim);
@@ -69,22 +72,31 @@ std::optional<std::string> play(GtpEngine *const pb, GtpEngine *const pw, const 
 		scorer->play(color, move);
 
 		if (move == "pass") {
-			if (color == C_BLACK)
+			if (color == C_BLACK) {
 				blackPass += 1;
-			else
+				sgf.push_back("B[]");
+			}
+			else {
 				whitePass += 1;
+				sgf.push_back("W[]");
+			}
 
 			if (blackPass == 3 || whitePass == 3)
 				break;
 		}
-
 		else if (move == "resign") {
 			if (color == C_BLACK)
-				result = "W";
+				result = "W+Resign";
 			else
-				result = "B";
+				result = "B+Resign";
 
 			break;
+		}
+		else {
+			if (color == C_BLACK)
+				sgf.push_back(myformat("B[%s]", move.c_str()));
+			else
+				sgf.push_back(myformat("W[%s]", move.c_str()));
 		}
 
 		if (color == C_BLACK)
@@ -96,14 +108,14 @@ std::optional<std::string> play(GtpEngine *const pb, GtpEngine *const pw, const 
 	if (result.has_value() == false)
 		result = scorer->getscore();
 
-	return result;
+	return { result, sgf };
 }
 
 typedef struct {
 	std::string command, directory, alt_name;
 } engine_parameters_t;
 
-void play_game(const std::string & meta_str, const engine_parameters_t & p1, const engine_parameters_t & p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file)
+void play_game(const std::string & meta_str, const engine_parameters_t & p1, const engine_parameters_t & p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file, const std::string & sgf_file)
 {
 	GtpEngine *scorer = new GtpEngine(ps.command, ps.directory, "");
 
@@ -118,14 +130,14 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 	uint64_t start_ts = get_ts_ms();
 
 	auto resultrc = play(inst1, inst2, dim, scorer);
-	if (resultrc.has_value() == false) {
+	if (resultrc.first.has_value() == false) {
 		dolog(info, "Game between %s and %s failed", name1.c_str(), name2.c_str());
 		delete inst2;
 		delete inst1;
 		delete scorer;
 		return;
 	}
-	std::string result = str_tolower(resultrc.value());
+	std::string result = str_tolower(resultrc.first.value());
 
 	std::string result_pgn = "1/2-1/2";
 
@@ -134,13 +146,29 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 	else if (result.at(0) == 'w')
 		result_pgn = "1-0";
 
-	pgn_file_lock.lock();
-	FILE *fh = fopen(pgn_file.c_str(), "a+");
-	if (fh) {
-		fprintf(fh, "[White \"%s\"]\n[Black \"%s\"]\n[Result \"%s\"]\n\n%s\n\n", name2.c_str(), name1.c_str(), result_pgn.c_str(), result_pgn.c_str());
-		fclose(fh);
+	game_file_lock.lock();
+	if (pgn_file.empty() == false) {
+		FILE *fh = fopen(pgn_file.c_str(), "a+");
+		if (fh) {
+			fprintf(fh, "[White \"%s\"]\n[Black \"%s\"]\n[Result \"%s\"]\n\n%s\n\n", name2.c_str(), name1.c_str(), result_pgn.c_str(), result_pgn.c_str());
+			fclose(fh);
+		}
 	}
-	pgn_file_lock.unlock();
+
+	if (sgf_file.empty() == false) {
+		FILE *fh = fopen(sgf_file.c_str(), "a+");
+		if (fh) {
+			fprintf(fh, "(;PW[%s]\nPB[%s]\nRE[%s]\n(", name2.c_str(), name1.c_str(), result.c_str());
+
+			for(const std::string & vertex : resultrc.second)
+				fprintf(fh, ";%s", vertex.c_str());
+
+			fprintf(fh, ")\n)\n\n");
+
+			fclose(fh);
+		}
+	}
+	game_file_lock.unlock();
 
 	uint64_t end_ts = get_ts_ms();
 
@@ -160,7 +188,7 @@ typedef struct {
 
 Queue<work_t> q;
 
-void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file)
+void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file)
 {
 	for(;;) {
 		work_t entry = q.pop();
@@ -169,11 +197,11 @@ void processing_thread(const engine_parameters_t & scorer, const int dim, const 
 
 		std::string meta = myformat("%d> ", entry.nr);
 
-		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file);
+		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file);
 	}
 }
 
-void play_batch(const std::vector<engine_parameters_t> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const int concurrency, const int iterations)
+void play_batch(const std::vector<engine_parameters_t> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations)
 {
 	dolog(info, "Batch starting");
 
@@ -184,7 +212,7 @@ void play_batch(const std::vector<engine_parameters_t> & engines, const engine_p
 	std::vector<std::thread *> threads;
 
 	for(int i=0; i<concurrency; i++) {
-		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file);
+		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file);
 		threads.push_back(th);
 	}
 
@@ -275,6 +303,8 @@ int main(int argc, char *argv[])
 
 	std::string pgn_file = (const char *)root.lookup("pgn_file");
 
+	std::string sgf_file = (const char *)root.lookup("sgf_file");
+
 	int concurrency = cfg.lookup("concurrency");
 
 	int n_games = cfg.lookup("n_games");
@@ -286,7 +316,7 @@ int main(int argc, char *argv[])
 	test_config(eo);
 
 	uint64_t start_ts = get_ts_ms();
-	play_batch(eo, scorer, dim, pgn_file, concurrency, n_games);
+	play_batch(eo, scorer, dim, pgn_file, sgf_file, concurrency, n_games);
 	uint64_t end_ts = get_ts_ms();
 	uint64_t took_ts = end_ts - start_ts;
 
