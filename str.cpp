@@ -58,6 +58,13 @@ std::string str_tolower(std::string s)
 	return s;
 }
 
+std::string str_toupper(std::string s)
+{
+	std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::toupper(c); });
+
+	return s;
+}
+
 std::string merge(const std::vector<std::string> & in, const std::string & seperator)
 {
 	std::string out;

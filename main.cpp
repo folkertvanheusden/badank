@@ -93,10 +93,20 @@ std::pair<std::optional<std::string>, std::vector<std::string> > play(GtpEngine 
 			break;
 		}
 		else {
+			// gtp to sgf
+			char column = move.at(0);
+			if (column >= 'j')
+				column--;
+
+			int row_str = atoi(move.substr(1).c_str());
+			char row = 'a' + row_str - 1;
+
+			std::string move_str = myformat("%c%c", column, row);
+
 			if (color == C_BLACK)
-				sgf.push_back(myformat("B[%s]", move.c_str()));
+				sgf.push_back(myformat("B[%s]", move_str.c_str()));
 			else
-				sgf.push_back(myformat("W[%s]", move.c_str()));
+				sgf.push_back(myformat("W[%s]", move_str.c_str()));
 		}
 
 		if (color == C_BLACK)
@@ -158,7 +168,7 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 	if (sgf_file.empty() == false) {
 		FILE *fh = fopen(sgf_file.c_str(), "a+");
 		if (fh) {
-			fprintf(fh, "(;PW[%s]\nPB[%s]\nRE[%s]\n(", name2.c_str(), name1.c_str(), result.c_str());
+			fprintf(fh, "(;PW[%s]\nPB[%s]\nRE[%s]\n(", name2.c_str(), name1.c_str(), str_toupper(result).c_str());
 
 			for(const std::string & vertex : resultrc.second)
 				fprintf(fh, ";%s", vertex.c_str());
