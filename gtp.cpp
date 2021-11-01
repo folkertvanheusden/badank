@@ -85,6 +85,14 @@ std::optional<std::string> GtpEngine::getscore()
 	return { };
 }
 
+std::optional<std::string> GtpEngine::protocol_version()
+{
+	if (engine->write("protocol_version"))
+		return getresponse(30000);  // 30s startup time max.
+
+	return { };
+}
+
 std::string GtpEngine::getname()
 {
 	if (name.empty() && engine->write("name")) {

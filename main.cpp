@@ -2,6 +2,8 @@
 #include <mutex>
 #include <optional>
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string>
 #include <thread>
 #include <sys/resource.h>
@@ -212,6 +214,32 @@ void play_batch(const std::vector<engine_parameters_t> & engines, const engine_p
     	dolog(info, "Batch finished");
 }
 
+void test_config(const std::vector<engine_parameters_t> & eo)
+{
+	bool err = false;
+
+	dolog(info, "Verifying configuration...");
+
+	for(auto & ep : eo) {
+		dolog(info, "Trying %s", ep.command.c_str());
+
+		GtpEngine *test = new GtpEngine(ep.command, ep.directory, ep.alt_name);
+
+		auto rc = test->protocol_version();
+		if (rc.has_value() == false) {
+			dolog(error, "Cannot talk to: %s", ep.command.c_str());
+			err = true;
+		}
+
+		delete test;
+	}
+
+	if (err) {
+		dolog(warning, "Terminating because of error(s)");
+		exit(1);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	setlog("badank.log", info, info);
@@ -251,6 +279,8 @@ int main(int argc, char *argv[])
 	int dim = cfg.lookup("board_size");
 
 	signal(SIGPIPE, SIG_IGN);
+
+	test_config(eo);
 
 	uint64_t start_ts = get_ts_ms();
 	play_batch(eo, scorer, dim, pgn_file, concurrency, n_games);
