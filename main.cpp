@@ -14,6 +14,8 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 
+#include "Glicko2/glicko/rating.hpp"
+
 #include "color.h"
 #include "error.h"
 #include "gtp.h"
@@ -131,6 +133,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 typedef struct {
 	std::string command, directory, alt_name;
+	std::string name;
+	Glicko::Rating rating;
 } engine_parameters_t;
 
 typedef struct _stats_t_ {
@@ -140,15 +144,17 @@ typedef struct _stats_t_ {
 	}
 } stats_t;
 
-void play_game(const std::string & meta_str, const engine_parameters_t & p1, const engine_parameters_t & p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s)
+void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s)
 {
 	GtpEngine *scorer = new GtpEngine(ps.command, ps.directory, "");
 
-	GtpEngine *inst1 = new GtpEngine(p1.command, p1.directory, p1.alt_name);
+	GtpEngine *inst1 = new GtpEngine(p1->command, p1->directory, p1->alt_name);
 	std::string name1 = inst1->getname();
+	p1->name = name1;
 
-	GtpEngine *inst2 = new GtpEngine(p2.command, p2.directory, p2.alt_name);
+	GtpEngine *inst2 = new GtpEngine(p2->command, p2->directory, p2->alt_name);
 	std::string name2 = inst2->getname();
+	p2->name = name2;
 
 	dolog(info, "%s%s versus %s started", meta_str.c_str(), name1.c_str(), name2.c_str());
 
@@ -171,10 +177,23 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 
 	std::string result_pgn = "1/2-1/2";
 
-	if (result.at(0) == 'b')
+	if (result.at(0) == 'b') {
 		result_pgn = "0-1";
-	else if (result.at(0) == 'w')
+		p1->rating.Update(p2->rating, 1.0);
+		p2->rating.Update(p1->rating, 0.0);
+	}
+	else if (result.at(0) == 'w') {
 		result_pgn = "1-0";
+		p1->rating.Update(p2->rating, 0.0);
+		p2->rating.Update(p1->rating, 1.0);
+	}
+	else {
+		p1->rating.Update(p2->rating, 0.5);
+		p2->rating.Update(p1->rating, 0.5);
+	}
+
+	p1->rating.Apply();
+	p2->rating.Apply();
 
 	game_file_lock.lock();
 	if (pgn_file.empty() == false) {
@@ -202,7 +221,7 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 
 	uint64_t end_ts = get_ts_ms();
 
-	dolog(info, "%s (black) versus %s (white) result: %s, took: %fs", name1.c_str(), name2.c_str(), result.c_str(), (end_ts - start_ts) / 1000.0);
+	dolog(info, "%s (black; %f elo) versus %s (white; %f elo) result: %s, took: %fs", name1.c_str(), p1->rating.Rating1(), name2.c_str(), p2->rating.Rating1(), result.c_str(), (end_ts - start_ts) / 1000.0);
 
 	delete inst2;
 
@@ -212,7 +231,7 @@ void play_game(const std::string & meta_str, const engine_parameters_t & p1, con
 }
 
 typedef struct {
-	engine_parameters_t p1, p2;
+	engine_parameters_t *p1, *p2;
 	int nr;
 } work_t;
 
@@ -222,7 +241,7 @@ void processing_thread(const engine_parameters_t & scorer, const int dim, const 
 {
 	for(;;) {
 		work_t entry = q.pop();
-		if (entry.p1.command.empty())
+		if (entry.p1->command.empty())
 			break;
 
 		std::string meta = myformat("%d> ", entry.nr);
@@ -231,7 +250,7 @@ void processing_thread(const engine_parameters_t & scorer, const int dim, const 
 	}
 }
 
-void play_batch(const std::vector<engine_parameters_t> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s)
+void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s)
 {
 	dolog(info, "Batch starting");
 
@@ -263,7 +282,7 @@ void play_batch(const std::vector<engine_parameters_t> & engines, const engine_p
 	engine_parameters_t ep;
 
 	for(int i=0; i<concurrency; i++)
-		q.push({ep, ep, -1});
+		q.push({&ep, &ep, -1});
 
     	dolog(info, "Waiting for threads to finish...");
 
@@ -275,20 +294,20 @@ void play_batch(const std::vector<engine_parameters_t> & engines, const engine_p
     	dolog(info, "Batch finished");
 }
 
-void test_config(const std::vector<engine_parameters_t> & eo)
+void test_config(const std::vector<engine_parameters_t *> & eo)
 {
 	bool err = false;
 
 	dolog(info, "Verifying configuration...");
 
-	for(auto & ep : eo) {
-		dolog(info, "Trying %s", ep.command.c_str());
+	for(auto ep : eo) {
+		dolog(info, "Trying %s", ep->command.c_str());
 
-		GtpEngine *test = new GtpEngine(ep.command, ep.directory, ep.alt_name);
+		GtpEngine *test = new GtpEngine(ep->command, ep->directory, ep->alt_name);
 
 		auto rc = test->protocol_version();
 		if (rc.has_value() == false) {
-			dolog(error, "Cannot talk to: %s", ep.command.c_str());
+			dolog(error, "Cannot talk to: %s", ep->command.c_str());
 			err = true;
 		}
 
@@ -306,7 +325,7 @@ int main(int argc, char *argv[])
 	setlog("badank.log", info, info);
 	dolog(info, " * Badank started *");
 
-	std::vector<engine_parameters_t> eo;  // engine objects
+	std::vector<engine_parameters_t *> eo;  // engine objects
 
 	libconfig::Config cfg;
 	cfg.readFile("badank.cfg");
@@ -323,7 +342,7 @@ int main(int argc, char *argv[])
 		std::string dir = (const char *)engine_root.lookup("dir");
 		std::string alt_name = (const char *)engine_root.lookup("alt_name");
 
-		engine_parameters_t p { command, dir, alt_name };
+		engine_parameters_t *p = new engine_parameters_t({ command, dir, alt_name });
 		eo.push_back(p);
 	}
 
@@ -361,6 +380,15 @@ int main(int argc, char *argv[])
 	dolog(info, "Time used: %fs, cpu factor child processes: %f", took_ts / 1000.0, child_ts / double(took_ts));
 	int g_ok = s.ok, g_error = s.error;
 	dolog(info, "Games ok: %d, games with an error: %d", g_ok, g_error);
+
+	dolog(info, "ratings:");
+	dolog(info, "-------");
+	for(engine_parameters_t *ep : eo) {
+		dolog(info, "%s: %.1f elo", ep->name.c_str(), ep->rating.Rating1());
+
+		delete ep;
+	}
+	dolog(info, "-------");
 
 	dolog(info, " * Badank finished *");
 

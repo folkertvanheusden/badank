@@ -1,0 +1,3 @@
+[submodule "Glicko2"]
+	path = Glicko2
+	url = https://github.com/TaylorP/Glicko2.git

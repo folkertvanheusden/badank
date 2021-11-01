@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_compile_options(-Wall)
 
+include_directories("Glicko2")
+
 add_executable(
   badank
   error.cpp
@@ -16,6 +18,7 @@ add_executable(
   proc.cpp
   str.cpp
   time.cpp
+  Glicko2/glicko/rating.cpp
 )
 
 add_executable(
