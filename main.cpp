@@ -26,7 +26,9 @@
 
 std::mutex game_file_lock;
 
-typedef enum { R_OK, R_ERROR, R_TIMEOUT } run_result_t;
+std::atomic_bool stop_flag { false };
+
+typedef enum { RR_OK, RR_ERROR, RR_TIMEOUT } run_result_t;
 
 // result, vector-of-sgf-moves
 std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer)
@@ -43,7 +45,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 	std::optional<std::string> result;
 
-	run_result_t rr = R_OK;
+	run_result_t rr = RR_OK;
 
 	for(;;) {
 		std::string move;
@@ -54,7 +56,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			if (rc.has_value() == false) {
 				dolog(info, "Black (%s) did not return a move", pb->getname().c_str());
 				result = "?";
-				rr = R_ERROR;
+				rr = RR_ERROR;
 				break;
 			}
 
@@ -68,7 +70,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			if (rc.has_value() == false) {
 				dolog(info, "White (%s) did not return a move", pw->getname().c_str());
 				result = "?";
-				rr = R_ERROR;
+				rr = RR_ERROR;
 				break;
 			}
 
@@ -175,11 +177,11 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 
 	std::string result = str_tolower(std::get<0>(resultrc).value());
 
-	if (std::get<2>(resultrc) == R_OK) {
+	if (std::get<2>(resultrc) == RR_OK) {
 		s->ok++;
 		s->ok_took += took;
 	}
-	else if (std::get<2>(resultrc) == R_ERROR) {
+	else if (std::get<2>(resultrc) == RR_ERROR) {
 		s->error++;
 	}
 
@@ -249,9 +251,9 @@ typedef struct {
 
 Queue<work_t> q;
 
-void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s)
+void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag)
 {
-	for(;;) {
+	for(;!*stop_flag;) {
 		work_t entry = q.pop();
 		if (entry.p1->command.empty()) {
 			dolog(info, "Work finished, terminating thread");
@@ -275,13 +277,13 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 	std::vector<std::thread *> threads;
 
 	for(int i=0; i<concurrency; i++) {
-		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s);
+		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, &stop_flag);
 		threads.push_back(th);
 	}
 
 	int nr = 0;
 
-	for(int i=0; i<iterations; i++) {
+	for(int i=0; i<iterations && !stop_flag; i++) {
 		for(size_t a=0; a<n; a++) {
 			for(size_t b=0; b<n; b++) {
 				if (a == b)
@@ -334,6 +336,13 @@ void test_config(const std::vector<engine_parameters_t *> & eo)
 	}
 }
 
+void sigh(int sig)
+{
+	stop_flag = true;
+
+	dolog(notice, "Program termination triggered by ^c (SIGQUIT)");
+}
+
 int main(int argc, char *argv[])
 {
 	setlog("badank.log", debug, info);
@@ -379,6 +388,8 @@ int main(int argc, char *argv[])
 	test_config(eo);
 
 	stats_t s;
+
+	signal(SIGQUIT, sigh);
 
 	uint64_t start_ts = get_ts_ms();
 	play_batch(eo, scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s);
