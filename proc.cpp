@@ -139,10 +139,11 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 
 	int use_to_ms = -1;
 
-	if (timeout_ms.has_value())
+	if (timeout_ms.has_value()) {
 		use_to_ms = timeout_ms.value();
 
-	dolog(debug, "%d] use time: %d", pid, use_to_ms);
+		dolog(debug, "%d] use time: %d", pid, use_to_ms);
+	}
 
 	uint64_t start_ms = get_ts_ms();
 
@@ -150,7 +151,8 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 
 	for(;;) {
 		int64_t time_left = use_to_ms == -1 ? 86400000 : (start_ms + use_to_ms - get_ts_ms());
-		dolog(debug, "time left: %ld", time_left);
+		if (timeout_ms.has_value())
+			dolog(debug, "time left: %ld", time_left);
 		if (time_left < 0)
 			break;
 
