@@ -150,7 +150,7 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 
 	for(;;) {
 		int64_t time_left = use_to_ms == -1 ? 86400000 : (start_ms + use_to_ms - get_ts_ms());
-		dolog(debug, "%d] time left: %ld", pid, time_left);
+		dolog(debug, "time left: %ld", time_left);
 		if (time_left < 0)
 			break;
 

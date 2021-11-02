@@ -330,8 +330,8 @@ void test_config(const std::vector<engine_parameters_t *> & eo)
 
 int main(int argc, char *argv[])
 {
-	setlog("badank.log", info, info);
-	dolog(info, " * Badank started *");
+	setlog("badank.log", debug, info);
+	dolog(notice, " * Badank started *");
 
 	std::vector<engine_parameters_t *> eo;  // engine objects
 
@@ -399,7 +399,7 @@ int main(int argc, char *argv[])
 	}
 	dolog(info, "-------");
 
-	dolog(info, " * Badank finished *");
+	dolog(notice, " * Badank finished *");
 
 	return 0;
 }
