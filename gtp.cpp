@@ -32,8 +32,15 @@ std::optional<std::string> GtpEngine::getresponse(const std::optional<int> timeo
 		if (rc.value().size() >= 1) {
 			dolog(debug, "%s> %s", name.c_str(), rc.value().c_str());
 
+			std::string data = trim(rc.value().substr(1));
+
 			if (rc.value().at(0) == '=')
-				return trim(rc.value().substr(1));
+				return data;
+
+			if (rc.value().at(0) == '?') {
+				dolog(warning, "Program %s returned an error: %s", name.c_str(), data.c_str());
+				return { }
+			}
 		}
 	}
 }
