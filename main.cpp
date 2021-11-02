@@ -230,6 +230,8 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 
 			fprintf(fh, ")\n)\n\n");
 
+			// TODO write an error indication to the sgf file
+
 			fclose(fh);
 		}
 	}
@@ -340,7 +342,7 @@ void sigh(int sig)
 {
 	stop_flag = true;
 
-	dolog(notice, "Program termination triggered by ^c (SIGQUIT)");
+	dolog(notice, "Program termination triggered by ^c (SIGINT)");
 }
 
 int main(int argc, char *argv[])
@@ -387,9 +389,9 @@ int main(int argc, char *argv[])
 
 	test_config(eo);
 
-	stats_t s;
+	signal(SIGINT, sigh);
 
-	signal(SIGQUIT, sigh);
+	stats_t s;
 
 	uint64_t start_ts = get_ts_ms();
 	play_batch(eo, scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s);
