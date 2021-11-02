@@ -41,6 +41,9 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 	int whitePass = 0, blackPass = 0;
 
+	uint64_t time_white = 0, time_black = 0;
+	int white_n = 0, black_n = 0;
+
 	color_t color = C_BLACK;
 
 	std::optional<std::string> result;
@@ -51,7 +54,9 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		std::string move;
 
 		if (color == C_BLACK) {
+			uint64_t start_ts = get_ts_ms();
 			auto rc = pb->genmove(color, { });
+			uint64_t end_ts = get_ts_ms();
 
 			if (rc.has_value() == false) {
 				dolog(info, "Black (%s) did not return a move", pb->getname().c_str());
@@ -60,12 +65,17 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 				break;
 			}
 
+			time_black += end_ts - start_ts;
+			black_n++;
+
 			move = rc.value();
 
 			pw->play(color, move);
 		}
 		else {
+			uint64_t start_ts = get_ts_ms();
 			auto rc = pw->genmove(color, { });
+			uint64_t end_ts = get_ts_ms();
 
 			if (rc.has_value() == false) {
 				dolog(info, "White (%s) did not return a move", pw->getname().c_str());
@@ -73,6 +83,9 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 				rr = RR_ERROR;
 				break;
 			}
+
+			time_white += end_ts - start_ts;
+			white_n++;
 
 			move = rc.value();
 
@@ -127,8 +140,17 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			color = C_BLACK;
 	}
 
+	dolog(info, "Black used %.3fs for %d moves, white %.3fs for %d moves", time_black / 1000.0 / black_n, black_n, time_white / 1000.0 / white_n, white_n);
+
 	if (result.has_value() == false)
 		result = scorer->getscore();
+
+	if (rr == RR_OK) {
+		auto b_result = pb->getscore();
+		auto w_result = pw->getscore();
+
+		dolog(info, "Result according to black: %s, according to white: %s, scorer: %s", b_result.has_value() ? b_result.value().c_str() : "-", w_result.has_value() ? w_result.value().c_str() : "-", result.value().c_str());
+	}
 
 	return { result, sgf, rr };
 }
