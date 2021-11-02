@@ -52,8 +52,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			auto rc = pb->genmove(color, { });
 
 			if (rc.has_value() == false) {
-				dolog(info, "Black (%s) stopped responding, white (%s) wins", pb->getname().c_str(), pw->getname().c_str());
-				result = "W";
+				dolog(info, "Black (%s) did not return a move", pb->getname().c_str());
+				result = "?";
 				rr = R_ERROR;
 				break;
 			}
@@ -66,8 +66,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			auto rc = pw->genmove(color, { });
 
 			if (rc.has_value() == false) {
-				dolog(info, "White (%s) stopped responding, black (%s) wins", pw->getname().c_str(), pb->getname().c_str());
-				result = "B";
+				dolog(info, "White (%s) did not return a move", pw->getname().c_str());
+				result = "?";
 				rr = R_ERROR;
 				break;
 			}
@@ -195,20 +195,26 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 		p1->rating.Update(p2->rating, 0.0);
 		p2->rating.Update(p1->rating, 1.0);
 	}
+	else if (result.at(0) == '?') {
+		// some error
+	}
 	else {
 		p1->rating.Update(p2->rating, 0.5);
 		p2->rating.Update(p1->rating, 0.5);
 	}
 
-	p1->rating.Apply();
-	p2->rating.Apply();
-
 	game_file_lock.lock();
-	if (pgn_file.empty() == false) {
-		FILE *fh = fopen(pgn_file.c_str(), "a+");
-		if (fh) {
-			fprintf(fh, "[White \"%s\"]\n[Black \"%s\"]\n[Result \"%s\"]\n\n%s\n\n", name2.c_str(), name1.c_str(), result_pgn.c_str(), result_pgn.c_str());
-			fclose(fh);
+
+	if (result.at(0) != '?') {
+		p1->rating.Apply();
+		p2->rating.Apply();
+
+		if (pgn_file.empty() == false) {
+			FILE *fh = fopen(pgn_file.c_str(), "a+");
+			if (fh) {
+				fprintf(fh, "[White \"%s\"]\n[Black \"%s\"]\n[Result \"%s\"]\n\n%s\n\n", name2.c_str(), name1.c_str(), result_pgn.c_str(), result_pgn.c_str());
+				fclose(fh);
+			}
 		}
 	}
 
