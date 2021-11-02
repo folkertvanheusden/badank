@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <libconfig.h++>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <signal.h>
@@ -165,6 +166,9 @@ typedef struct _stats_t_ {
 	std::atomic_int ok { 0 }, error { 0 };
 	std::atomic_uint64_t ok_took { 0 };
 
+	std::mutex errors_lock;
+	std::map<std::string, int> errors;
+
 	_stats_t_() {
 	}
 } stats_t;
@@ -221,6 +225,17 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 	}
 	else if (result.at(0) == '?') {
 		// some error
+		std::string key = name1 + " versus " + name2;
+
+		s->errors_lock.lock();
+
+		auto it = s->errors.find(key);
+		if (it == s->errors.end())
+			s->errors.insert({ key, 1 });
+		else
+			it->second++;
+
+		s->errors_lock.unlock();
 	}
 	else {
 		p1->rating.Update(p2->rating, 0.5);
@@ -432,13 +447,21 @@ int main(int argc, char *argv[])
 	dolog(info, "Games ok: %d (avg duration: %.1fs), games with an error: %d", g_ok, g_ok_took / 1000.0 / g_ok, g_error);
 
 	dolog(info, "ratings:");
-	dolog(info, "-------");
 	for(engine_parameters_t *ep : eo) {
 		dolog(info, "%s: %.1f elo", ep->name.c_str(), ep->rating.Rating1());
 
 		delete ep;
 	}
 	dolog(info, "-------");
+
+	if (s.errors.empty() == false) {
+		dolog(info, "problems:");
+
+		for(auto it : s.errors)
+			dolog(info, "%s - %d", it.first.c_str(), it.second);
+
+		dolog(info, "--------");
+	}
 
 	dolog(notice, " * Badank finished *");
 
