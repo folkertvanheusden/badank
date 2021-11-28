@@ -260,7 +260,7 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 	if (sgf_file.empty() == false) {
 		FILE *fh = fopen(sgf_file.c_str(), "a+");
 		if (fh) {
-			fprintf(fh, "(;PW[%s]\nPB[%s]\nRE[%s]\nC[%s]\n(", name2.c_str(), name1.c_str(), str_toupper(result).c_str(), meta_str.c_str());
+			fprintf(fh, "(;SZ[%d]PW[%s]\nPB[%s]\nRE[%s]\nC[%s]\n(", dim, name2.c_str(), name1.c_str(), str_toupper(result).c_str(), meta_str.c_str());
 
 			for(const std::string & vertex : std::get<1>(resultrc))
 				fprintf(fh, ";%s", vertex.c_str());
