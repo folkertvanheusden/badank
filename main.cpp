@@ -32,7 +32,7 @@ std::atomic_bool stop_flag { false };
 typedef enum { RR_OK, RR_ERROR, RR_TIMEOUT } run_result_t;
 
 // result, vector-of-sgf-moves
-std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer)
+std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer, const double time_per_game)
 {
 	std::vector<std::string> sgf;
 
@@ -45,6 +45,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 	uint64_t time_white = 0, time_black = 0;
 	int white_n = 0, black_n = 0;
 
+	int time_left[] = { int(time_per_game * 1000), int(time_per_game * 1000) };
+
 	color_t color = C_BLACK;
 
 	std::optional<std::string> result;
@@ -55,8 +57,15 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		std::string move;
 
 		if (color == C_BLACK) {
+			if (pb->time_left(color, time_left[color]) == false) {
+				dolog(info, "Black (%s) did not respond to time_left", pb->getname().c_str());
+				result = "?";
+				rr = RR_ERROR;
+				break;
+			}
+
 			uint64_t start_ts = get_ts_ms();
-			auto rc = pb->genmove(color, { });
+			auto rc = pb->genmove(color);
 			uint64_t end_ts = get_ts_ms();
 
 			if (rc.has_value() == false) {
@@ -66,7 +75,10 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 				break;
 			}
 
-			time_black += end_ts - start_ts;
+			uint64_t took = end_ts - start_ts;
+			time_black += took;
+			time_left[color] -= took;
+
 			black_n++;
 
 			move = rc.value();
@@ -74,8 +86,15 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			pw->play(color, move);
 		}
 		else {
+			if (pb->time_left(color, time_left[color]) == false) {
+				dolog(info, "Black (%s) did not respond to time_left", pb->getname().c_str());
+				result = "?";
+				rr = RR_ERROR;
+				break;
+			}
+
 			uint64_t start_ts = get_ts_ms();
-			auto rc = pw->genmove(color, { });
+			auto rc = pw->genmove(color);
 			uint64_t end_ts = get_ts_ms();
 
 			if (rc.has_value() == false) {
@@ -85,7 +104,10 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 				break;
 			}
 
-			time_white += end_ts - start_ts;
+			uint64_t took = end_ts - start_ts;
+			time_white += took;
+			time_left[color] -= took;
+
 			white_n++;
 
 			move = rc.value();
@@ -97,7 +119,15 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 		scorer->play(color, move);
 
-		if (move == "pass") {
+		if (time_left[color] < 0) {
+			if (color == C_BLACK)
+				result = "W+Time";
+			else
+				result = "B+Time";
+
+			break;
+		}
+		else if (move == "pass") {
 			if (color == C_BLACK) {
 				blackPass += 1;
 				sgf.push_back("B[]");
@@ -173,7 +203,7 @@ typedef struct _stats_t_ {
 	}
 } stats_t;
 
-void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s)
+void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, const double time_per_game)
 {
 	GtpEngine *scorer = new GtpEngine(ps.command, ps.directory, "");
 
@@ -189,7 +219,7 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 
 	uint64_t start_ts = get_ts_ms();
 
-	auto resultrc = play(inst1, inst2, dim, scorer);
+	auto resultrc = play(inst1, inst2, dim, scorer, time_per_game);
 	if (std::get<0>(resultrc).has_value() == false) {
 		dolog(info, "Game between %s and %s failed", name1.c_str(), name2.c_str());
 		delete inst2;
@@ -290,7 +320,7 @@ typedef struct {
 
 Queue<work_t> q;
 
-void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag)
+void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const double time_per_game)
 {
 	for(;!*stop_flag;) {
 		work_t entry = q.pop();
@@ -301,11 +331,11 @@ void processing_thread(const engine_parameters_t & scorer, const int dim, const 
 
 		std::string meta = myformat("%d> ", entry.nr);
 
-		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file, s);
+		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file, s, time_per_game);
 	}
 }
 
-void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s)
+void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const double time_per_game)
 {
 	dolog(info, "Batch starting");
 
@@ -316,7 +346,7 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 	std::vector<std::thread *> threads;
 
 	for(int i=0; i<concurrency; i++) {
-		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, &stop_flag);
+		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, &stop_flag, time_per_game);
 		threads.push_back(th);
 	}
 
@@ -422,6 +452,8 @@ int main(int argc, char *argv[])
 
 	int dim = cfg.lookup("board_size");
 
+	int time_per_game = cfg.lookup("time_per_game");
+
 	signal(SIGPIPE, SIG_IGN);
 
 	test_config(eo);
@@ -431,7 +463,7 @@ int main(int argc, char *argv[])
 	stats_t s;
 
 	uint64_t start_ts = get_ts_ms();
-	play_batch(eo, scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s);
+	play_batch(eo, scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, time_per_game);
 	uint64_t end_ts = get_ts_ms();
 	uint64_t took_ts = end_ts - start_ts;
 

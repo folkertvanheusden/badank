@@ -20,7 +20,8 @@ public:
 	GtpEngine(const std::string & program, const std::string & dir, const std::string & alt_name);
 	~GtpEngine();
 
-	std::optional<std::string> genmove(const color_t c, const std::optional<int> timeout_ms);
+	std::optional<std::string> genmove(const color_t c);
+	bool time_left(const color_t c, const int time_left_ms);
 	bool play(const color_t c, const std::string & vertex);
 
 	bool boardsize(const int dim);

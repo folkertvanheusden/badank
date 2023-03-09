@@ -45,7 +45,7 @@ std::optional<std::string> GtpEngine::getresponse(const std::optional<int> timeo
 	}
 }
 
-std::optional<std::string> GtpEngine::genmove(const color_t c, const std::optional<int> timeout_ms)
+std::optional<std::string> GtpEngine::genmove(const color_t c)
 {
 	std::string cmd = myformat("genmove %c", c == C_WHITE ? 'w' : 'b');
 
@@ -60,6 +60,18 @@ std::optional<std::string> GtpEngine::genmove(const color_t c, const std::option
 bool GtpEngine::play(const color_t c, const std::string & vertex)
 {
 	std::string cmd = myformat("play %c %s", c == C_WHITE ? 'w' : 'b', vertex.c_str());
+
+	dolog(debug, "%s< %s", name.c_str(), cmd.c_str());
+
+	if (engine->write(cmd))
+		return getresponse({ }).has_value();
+
+	return false;
+}
+
+bool GtpEngine::time_left(const color_t c, const int time_left_ms)
+{
+	std::string cmd = myformat("time_left %c %d 0", c == C_WHITE ? 'w' : 'b', time_left_ms / 1000);
 
 	dolog(debug, "%s< %s", name.c_str(), cmd.c_str());
 

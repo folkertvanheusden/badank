@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
 	bool rc2 = ge->play(C_BLACK, "a1");
 	assert(rc2);
 
-	auto rc3 = ge->genmove(C_WHITE, { });
+	auto rc3 = ge->genmove(C_WHITE);
 	assert(rc3.has_value());
 	printf("move: %s\n", rc3.value().c_str());
 
