@@ -19,4 +19,6 @@ public:
 	std::optional<std::string> read(std::optional<int> timeout_ms);
 
 	bool write(const std::string & text);
+
+	pid_t get_pid() const { return pid; }
 };

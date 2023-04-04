@@ -171,7 +171,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			color = C_BLACK;
 	}
 
-	dolog(info, "Black used %.3fs for %d moves, white %.3fs for %d moves", time_black / 1000.0 / black_n, black_n, time_white / 1000.0 / white_n, white_n);
+	dolog(info, "Black (%s) used %.3fs for %d moves, white (%s) %.3fs for %d moves", pb->getname().c_str(), time_black / 1000.0 / black_n, black_n, pw->getname().c_str(), time_white / 1000.0 / white_n, white_n);
 
 	if (result.has_value() == false)
 		result = scorer->getscore();

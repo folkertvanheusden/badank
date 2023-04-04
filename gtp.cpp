@@ -126,5 +126,5 @@ std::string GtpEngine::getname()
 			name = program;
 	}
 
-	return name;
+	return name + myformat(" [%d]", engine->get_pid());
 }
