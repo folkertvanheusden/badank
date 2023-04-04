@@ -69,6 +69,18 @@ bool GtpEngine::play(const color_t c, const std::string & vertex)
 	return false;
 }
 
+bool GtpEngine::setkomi(const double komi)
+{
+	std::string cmd = myformat("komi %f", komi);
+
+	dolog(debug, "%s< %s", name.c_str(), cmd.c_str());
+
+	if (engine->write(cmd))
+		return getresponse({ }).has_value();
+
+	return false;
+}
+
 bool GtpEngine::time_left(const color_t c, const int time_left_ms)
 {
 	std::string cmd = myformat("time_left %c %d 0", c == C_WHITE ? 'w' : 'b', time_left_ms / 1000);

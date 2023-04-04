@@ -20,6 +20,8 @@ public:
 	GtpEngine(const std::string & program, const std::string & dir, const std::string & alt_name);
 	~GtpEngine();
 
+	bool setkomi(const double komi);
+
 	std::optional<std::string> genmove(const color_t c);
 	bool time_left(const color_t c, const int time_left_ms);
 	bool play(const color_t c, const std::string & vertex);
