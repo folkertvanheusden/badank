@@ -1,3 +1,6 @@
+Badank, the dankest baduk tournament manager!
+
+
 What it is
 ----------
 
