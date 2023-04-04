@@ -86,7 +86,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			pw->play(color, move);
 		}
 		else {
-			if (pb->time_left(color, time_left[color]) == false) {
+			if (pw->time_left(color, time_left[color]) == false) {
 				dolog(info, "Black (%s) did not respond to time_left", pb->getname().c_str());
 				result = "?";
 				rr = RR_ERROR;
@@ -137,7 +137,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 				sgf.push_back("W[]");
 			}
 
-			if (blackPass == 3 || whitePass == 3)
+			if (blackPass == 3 || whitePass == 3)  // TODO incorrect
 				break;
 		}
 		else if (move == "resign") {
@@ -414,7 +414,7 @@ void sigh(int sig)
 
 int main(int argc, char *argv[])
 {
-	setlog("badank.log", info, info);
+	setlog("badank.log", debug, info);
 	dolog(notice, " * Badank started *");
 
 	std::vector<engine_parameters_t *> eo;  // engine objects
