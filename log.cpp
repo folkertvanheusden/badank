@@ -75,7 +75,7 @@ void dolog(const log_level_t ll, const char *fmt, ...)
 
 	char *ts_str = nullptr;
 
-	const char *const ll_names[] = { "debug  ", "info   ", "warning", "error  " };
+	const char *const ll_names[] = { "debug  ", "info   ", "notice ", "warning", "error  " };
 
 	asprintf(&ts_str, "%04d-%02d-%02d %02d:%02d:%02d.%03d [%d] %s ",
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, int(now % 1000),
