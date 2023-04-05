@@ -31,13 +31,17 @@ std::atomic_bool stop_flag { false };
 
 typedef enum { RR_OK, RR_ERROR, RR_TIMEOUT } run_result_t;
 
-bool seed_board(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngine *const scorer, const int dim, const int n_random_stones)
+bool seed_board(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngine *const scorer, const int dim, const int n_random_stones, std::vector<std::string> *const sgf)
 {
 	enum { SR_OK, SR_RETRY, SR_FAIL } seed_result = SR_FAIL;
+
+	std::vector<std::string> sgf_temp;
 
 	do {
 		const int dimsq  = dim * dim;
 		bool     *in_use = new bool[dimsq]();
+
+		sgf_temp.clear();
 
 		seed_result = SR_OK;
 
@@ -78,6 +82,13 @@ bool seed_board(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngine *const
 				seed_result = i > 1 ? SR_RETRY : SR_FAIL;
 				break;
 			}
+
+			std::string move_str = myformat("%c%c", 'a' + x, 'a' + y);
+
+			if (c == C_BLACK)
+				sgf_temp.push_back(myformat("B[%s]", move_str.c_str()));
+			else
+				sgf_temp.push_back(myformat("W[%s]", move_str.c_str()));
 		}
 
 		delete [] in_use;
@@ -89,7 +100,13 @@ bool seed_board(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngine *const
 	}
 	while(seed_result == SR_RETRY);
 
-	return seed_result == SR_OK;
+	if (seed_result == SR_OK) {
+		*sgf = sgf_temp;
+
+		return true;
+	}
+
+	return false;
 }
 
 // result, vector-of-sgf-moves
@@ -101,7 +118,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 	pb->boardsize(dim);
 	pw->boardsize(dim);
 
-	if (!seed_board(pb, pw, scorer, dim, n_random_stones)) {
+	if (!seed_board(pb, pw, scorer, dim, n_random_stones, &sgf)) {
 		dolog(error, "Failed to seed board for %s versus %s", pb->getname().c_str(), pw->getname().c_str());
 
 		return { { }, { }, RR_ERROR };
