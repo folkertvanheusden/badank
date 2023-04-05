@@ -124,6 +124,11 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 	pb->boardsize(dim);
 	pw->boardsize(dim);
 
+	pb->time_settings(time_per_game, 0, 0);
+	pw->time_settings(time_per_game, 0, 0);
+
+	// TODO: time_settings
+
 	if (!seed_board(pb, pw, scorer, dim, n_random_stones, &sgf)) {
 		dolog(error, "Failed to seed board for %s versus %s", pb->getname().c_str(), pw->getname().c_str());
 

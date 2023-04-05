@@ -81,6 +81,18 @@ bool GtpEngine::setkomi(const double komi)
 	return false;
 }
 
+bool GtpEngine::time_settings(const int main_time, const int byo_yomi_time, const int byo_yomi_stones)
+{
+	std::string cmd = myformat("time_settings %d %d %d", main_time, byo_yomi_time, byo_yomi_stones);
+
+	dolog(debug, "%s< %s", name.c_str(), cmd.c_str());
+
+	if (engine->write(cmd))
+		return getresponse({ }).has_value();
+
+	return false;
+}
+
 bool GtpEngine::time_left(const color_t c, const int time_left_ms)
 {
 	std::string cmd = myformat("time_left %c %d 0", c == C_WHITE ? 'w' : 'b', time_left_ms / 1000);

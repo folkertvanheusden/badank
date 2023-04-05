@@ -22,6 +22,8 @@ public:
 
 	bool setkomi(const double komi);
 
+	bool time_settings(const int main_time, const int byo_yomi_time, const int byo_yomi_stones);
+
 	std::optional<std::string> genmove(const color_t c);
 	bool time_left(const color_t c, const int time_left_ms);
 	bool play(const color_t c, const std::string & vertex);
