@@ -21,6 +21,7 @@ add_executable(
   log.cpp
   main.cpp
   proc.cpp
+  sgf.cpp
   str.cpp
   time.cpp
   Glicko2/glicko/rating.cpp
