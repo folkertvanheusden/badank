@@ -33,42 +33,58 @@ typedef enum { RR_OK, RR_ERROR, RR_TIMEOUT } run_result_t;
 
 bool seed_board(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngine *const scorer, const int dim, const int n_random_stones)
 {
-	const int dimsq  = dim * dim;
-	bool     *in_use = new bool[dimsq]();
+	enum { SR_OK, SR_RETRY, SR_FAIL } seed_result = SR_FAIL;
 
-	for(int i=0; i<n_random_stones * 2; i++) {
-		int v = 0;
+	do {
+		const int dimsq  = dim * dim;
+		bool     *in_use = new bool[dimsq]();
 
-		do {
-			v = rand() % dimsq;
+		seed_result = SR_OK;
+
+		for(int i=0; i<n_random_stones * 2; i++) {
+			int v = 0;
+
+			do {
+				v = rand() % dimsq;
+			}
+			while(in_use[v]);
+
+			in_use[v] = true;
+
+			color_t c = i & 1 ? C_BLACK : C_WHITE;
+
+			const int x = v % dim;
+			const int y = v / dim;
+
+			char x_gtp = 'A' + x;
+
+			if (x_gtp >= 'I')
+				x_gtp++;
+
+			std::string vertex = myformat("%c%d", x_gtp, y + 1);
+
+			if (!inst1->play(c, vertex)) {
+				seed_result = SR_FAIL;
+				break;
+			}
+
+			if (!inst2->play(c, vertex)) {
+				seed_result = SR_FAIL;
+				break;
+			}
+
+			// assuming that the scorer is always right
+			if (!scorer->play(c, vertex)) {
+				seed_result = i > 1 ? SR_RETRY : SR_FAIL;
+				break;
+			}
 		}
-		while(in_use[v]);
 
-		in_use[v] = true;
-
-		color_t c = i & 1 ? C_BLACK : C_WHITE;
-
-		const int x = v % dim;
-		const int y = v / dim;
-
-		char x_gtp = 'A' + x;
-
-		if (x_gtp >= 'I')
-			x_gtp++;
-
-		std::string vertex = myformat("%c%d", x_gtp, y + 1);
-
-		if (!inst1->play(c, vertex))
-			return false;
-
-		if (!inst2->play(c, vertex))
-			return false;
-
-		if (!scorer->play(c, vertex))
-			return false;
+		delete [] in_use;
 	}
+	while(seed_result == SR_RETRY);
 
-	return true;
+	return seed_result == SR_OK;
 }
 
 // result, vector-of-sgf-moves
