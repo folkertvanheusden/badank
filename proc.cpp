@@ -62,7 +62,6 @@ std::tuple<pid_t, int, int> exec_with_pipe(const std::string & command, const st
 		int stderr = open("/dev/null", O_WRONLY);
 		close(pipe_from_proc[0]);
 
-		// TODO: a smarter way?
 		int fd_max = sysconf(_SC_OPEN_MAX);
 		for(int fd=3; fd<fd_max; fd++)
 			close(fd);
@@ -108,7 +107,6 @@ TextProgram::~TextProgram()
 	close(w);
 
 	for(int i=0; i<3; i++) {
-		// TODO handle status (now nullptr)
 		int rc = waitpid(pid, nullptr, WNOHANG);
 
 		if (rc == -1)
@@ -164,7 +162,7 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 			if (rc == 0)
 				break;
 			if (rc == -1) {
-				// TODO log error
+				dolog(debug, "read error: %s", strerror(errno));
 				break;
 			}
 
