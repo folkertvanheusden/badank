@@ -1,3 +1,6 @@
+# (C) 2021-2023 by Folkert van Heusden <mail@vanheusden.com>
+# Released under MIT license
+
 cmake_minimum_required(VERSION 3.7)
 
 project(baduck)
