@@ -307,6 +307,8 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 
 	uint64_t start_ts = get_ts_ms();
 
+	time_t   start_t  = time(nullptr);
+
 	auto resultrc = play(inst1, inst2, dim, scorer, time_per_game, n_random_stones);
 	if (std::get<0>(resultrc).has_value() == false) {
 		dolog(info, "Game between %s and %s failed", name1.c_str(), name2.c_str());
@@ -378,12 +380,19 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 	if (sgf_file.empty() == false) {
 		FILE *fh = fopen(sgf_file.c_str(), "a+");
 		if (fh) {
-			fprintf(fh, "(;SZ[%d]PW[%s]\nPB[%s]\nRE[%s]\nC[%s]\n(", dim, name2.c_str(), name1.c_str(), str_toupper(result).c_str(), meta_str.c_str());
+			tm *tm = localtime(&start_t);
+
+			fprintf(fh, "(;AP[Badank]DT[%04d-%02d-%02d]GM[1]TM[%d]KM[%f]SZ[%d]PW[%s]\nPB[%s]\nRE[%s]\nC[%s]RU[Tromp/Taylor]\n(", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, int(time_per_game), komi, dim, name2.c_str(), name1.c_str(), str_toupper(result).c_str(), meta_str.c_str());
 
 			for(const std::string & vertex : std::get<1>(resultrc))
 				fprintf(fh, ";%s", vertex.c_str());
 
-			fprintf(fh, ";C[%s])\n)\n\n", std::get<2>(resultrc) == RR_OK ? "" : result.c_str());
+			if (std::get<2>(resultrc) != RR_OK)
+				fprintf(fh, ";C[%s]", result.c_str());
+
+			fprintf(fh, ";C[Initial %d black and %d white stones were placed randomly by Badank]", n_random_stones, n_random_stones);
+
+			fprintf(fh, ")\n)\n\n");
 
 			fclose(fh);
 		}
