@@ -26,17 +26,6 @@ add_executable(
   Glicko2/glicko/rating.cpp
 )
 
-add_executable(
-  badank_test
-  error.cpp
-  gtp.cpp
-  log.cpp
-  proc.cpp
-  str.cpp
-  test.cpp
-  time.cpp
-)
-
 set(CMAKE_BUILD_TYPE Debug)
 
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
