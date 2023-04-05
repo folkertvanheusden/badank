@@ -625,7 +625,14 @@ int main(int argc, char *argv[])
 
 		double komi = cfg.lookup("komi");
 
-		std::string sgf_book_path = (const char *)cfg.lookup("sgf_book_path");
+		std::string sgf_book_path;
+
+		try {
+			sgf_book_path = (const char *)cfg.lookup("sgf_book_path");
+		}
+		catch(const libconfig::SettingNotFoundException & e) {
+			// not a problem, just not set
+		}
 
 		signal(SIGPIPE, SIG_IGN);
 
