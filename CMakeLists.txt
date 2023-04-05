@@ -9,6 +9,8 @@ add_compile_options(-Wall)
 
 include_directories("Glicko2")
 
+set(CMAKE_BUILD_TYPE Debug)
+
 add_executable(
   badank
   error.cpp
