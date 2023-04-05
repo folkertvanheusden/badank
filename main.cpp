@@ -114,6 +114,12 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 {
 	std::vector<std::string> sgf;
 
+	if (pb->clearboard() == false || pw->clearboard() == false || scorer->clearboard()) {
+		dolog(error, "\"clear_board\" not accepted");
+
+		return { { }, { }, RR_ERROR };
+	}
+
 	scorer->boardsize(dim);
 	pb->boardsize(dim);
 	pw->boardsize(dim);
