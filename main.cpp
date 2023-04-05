@@ -532,14 +532,16 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 
 	engine_parameters_t ep;
 
-	for(int i=0; i<concurrency; i++)
+	for(int i=0; i<concurrency && !stop_flag; i++)
 		q.push({&ep, &ep, -1});
 
     	dolog(info, "Waiting for threads to finish...");
 
-	for(std::thread *th : threads) {
-		th->join();
-		delete th;
+	for(size_t i=0; i<threads.size(); i++) {
+		threads.at(i)->join();
+		delete threads.at(i);
+
+		dolog(info, "%zu threads left", threads.size() - i - 1);
 	}
 
     	dolog(info, "Batch finished");
