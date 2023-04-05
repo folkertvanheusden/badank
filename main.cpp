@@ -366,9 +366,7 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 			for(const std::string & vertex : std::get<1>(resultrc))
 				fprintf(fh, ";%s", vertex.c_str());
 
-			fprintf(fh, ")\n)\n\n");
-
-			// TODO write an error indication to the sgf file
+			fprintf(fh, ";C[%s])\n)\n\n", result.c_str());
 
 			fclose(fh);
 		}
