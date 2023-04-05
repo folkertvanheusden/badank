@@ -5,7 +5,7 @@ project(baduck)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-add_compile_options(-Wall)
+add_compile_options(-Wall -pedantic)
 
 include_directories("Glicko2")
 
