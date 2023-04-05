@@ -81,6 +81,11 @@ bool seed_board(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngine *const
 		}
 
 		delete [] in_use;
+
+		if (seed_result == SR_FAIL)
+			dolog(warning, "Seeding failed");
+		else if (seed_result == SR_RETRY)
+			dolog(warning, "Seeding failed - retrying");
 	}
 	while(seed_result == SR_RETRY);
 
