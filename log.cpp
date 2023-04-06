@@ -11,18 +11,44 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "error.h"
 #include "log.h"
 #include "time.h"
+
 
 static const char *logfile = nullptr;
 static log_level_t log_level_file = warning;
 static log_level_t log_level_screen = warning;
 static FILE *lfh = nullptr;
 
+log_level_t parse_ll(const std::string & ll)
+{
+	if (ll == "debug")
+		return debug;
+
+	if (ll == "info")
+		return info;
+
+	if (ll == "notice")
+		return notice;
+
+	if (ll == "warning")
+		return warning;
+
+	if (ll == "error")
+		return error;
+
+	error_exit(false, "Log-level \"%s\" not understood", ll.c_str());
+
+	return debug;
+}
+
 void setlog(const char *lf, const log_level_t ll_file, const log_level_t ll_screen)
 {
-	if (lfh)
+	if (lfh) {
 		fclose(lfh);
+		lfh = nullptr;
+	}
 
 	free((void *)logfile);
 
@@ -30,6 +56,11 @@ void setlog(const char *lf, const log_level_t ll_file, const log_level_t ll_scre
 
 	log_level_file = ll_file;
 	log_level_screen = ll_screen;
+}
+
+void setlog(const char *lf, const std::string & ll_file, const std::string & ll_screen)
+{
+	setlog(lf, parse_ll(ll_file), parse_ll(ll_screen));
 }
 
 void closelog()

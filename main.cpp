@@ -593,6 +593,11 @@ int main(int argc, char *argv[])
 
 		libconfig::Setting & root = cfg.getRoot();
 
+		std::string log_level_screen = (const char *)root.lookup("log_level_screen");
+		std::string log_level_file   = (const char *)root.lookup("log_level_file");
+
+		setlog("badank.log", log_level_file, log_level_screen);
+
 		libconfig::Setting & engines = root.lookup("engines");
 		size_t n_engines = engines.getLength();
 
