@@ -339,6 +339,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 typedef struct {
 	std::string command, directory, alt_name;
 	std::string name;
+
+	std::mutex lock;
 	Glicko::Rating rating;
 } engine_parameters_t;
 
@@ -353,9 +355,9 @@ typedef struct _stats_t_ {
 	}
 } stats_t;
 
-void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t & ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, const double time_per_game, const double komi, const int n_random_stones, const std::vector<book_entry_t> *const book_entries)
+void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t *const ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, const double time_per_game, const double komi, const int n_random_stones, const std::vector<book_entry_t> *const book_entries)
 {
-	GtpEngine *scorer = new GtpEngine(ps.command, ps.directory, "");
+	GtpEngine *scorer = new GtpEngine(ps->command, ps->directory, "");
 
 	GtpEngine *inst1 = new GtpEngine(p1->command, p1->directory, p1->alt_name);
 	std::string name1 = inst1->getname();
@@ -401,13 +403,29 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 
 	if (result.at(0) == 'b') {
 		result_pgn = "0-1";
-		p1->rating.Update(p2->rating, 1.0);
-		p2->rating.Update(p1->rating, 0.0);
+
+		{
+			std::unique_lock<std::mutex> lck(p1->lock);
+			p1->rating.Update(p2->rating, 1.0);
+		}
+
+		{
+			std::unique_lock<std::mutex> lck(p2->lock);
+			p2->rating.Update(p1->rating, 0.0);
+		}
 	}
 	else if (result.at(0) == 'w') {
 		result_pgn = "1-0";
-		p1->rating.Update(p2->rating, 0.0);
-		p2->rating.Update(p1->rating, 1.0);
+
+		{
+			std::unique_lock<std::mutex> lck(p1->lock);
+			p1->rating.Update(p2->rating, 0.0);
+		}
+
+		{
+			std::unique_lock<std::mutex> lck(p2->lock);
+			p2->rating.Update(p1->rating, 1.0);
+		}
 	}
 	else if (result.at(0) == '?') {
 		// some error
@@ -424,15 +442,29 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 		s->errors_lock.unlock();
 	}
 	else {
-		p1->rating.Update(p2->rating, 0.5);
-		p2->rating.Update(p1->rating, 0.5);
+		{
+			std::unique_lock<std::mutex> lck(p1->lock);
+			p1->rating.Update(p2->rating, 0.5);
+		}
+
+		{
+			std::unique_lock<std::mutex> lck(p2->lock);
+			p2->rating.Update(p1->rating, 0.5);
+		}
 	}
 
 	game_file_lock.lock();
 
 	if (result.at(0) != '?') {
-		p1->rating.Apply();
-		p2->rating.Apply();
+		{
+			std::unique_lock<std::mutex> lck(p1->lock);
+			p1->rating.Apply();
+		}
+
+		{
+			std::unique_lock<std::mutex> lck(p2->lock);
+			p2->rating.Apply();
+		}
 
 		if (pgn_file.empty() == false) {
 			FILE *fh = fopen(pgn_file.c_str(), "a+");
@@ -465,7 +497,17 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 	}
 	game_file_lock.unlock();
 
-	dolog(info, "%s (black; %f elo) versus %s (white; %f elo) result: %s, took: %fs", name1.c_str(), p1->rating.Rating1(), name2.c_str(), p2->rating.Rating1(), result.c_str(), (end_ts - start_ts) / 1000.0);
+	{
+		std::unique_lock<std::mutex> lck1(p1->lock);
+		double r1 = p1->rating.Rating1();
+		lck1.unlock();
+
+		std::unique_lock<std::mutex> lck2(p2->lock);
+		double r2 = p2->rating.Rating2();
+		lck2.unlock();
+
+		dolog(info, "%s (black; %f elo) versus %s (white; %f elo) result: %s, took: %fs", name1.c_str(), r1, name2.c_str(), r2, result.c_str(), (end_ts - start_ts) / 1000.0);
+	}
 
 	delete inst2;
 
@@ -481,7 +523,7 @@ typedef struct {
 
 Queue<work_t> q;
 
-void processing_thread(const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const double time_per_game, const double komi, const int n_random_stones, std::vector<book_entry_t> *const book_entries)
+void processing_thread(const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const double time_per_game, const double komi, const int n_random_stones, std::vector<book_entry_t> *const book_entries)
 {
 	for(;!*stop_flag;) {
 		work_t entry = q.pop();
@@ -496,7 +538,7 @@ void processing_thread(const engine_parameters_t & scorer, const int dim, const 
 	}
 }
 
-void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t & scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const double time_per_game, const double komi, const int n_random_stones, const std::string & sgf_book_path)
+void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const double time_per_game, const double komi, const int n_random_stones, const std::string & sgf_book_path)
 {
 	dolog(info, "Batch starting");
 
@@ -604,12 +646,13 @@ int main(int argc, char *argv[])
 		for(size_t i=0; i<n_engines; i++) {
 			libconfig::Setting &engine_root = engines[i];
 
-			std::string command = (const char *)engine_root.lookup("command");
-			std::string dir = (const char *)engine_root.lookup("dir");
-			std::string alt_name = (const char *)engine_root.lookup("alt_name");
+			engine_parameters_t *ep = new engine_parameters_t();
 
-			engine_parameters_t *p = new engine_parameters_t({ command, dir, alt_name });
-			eo.push_back(p);
+			ep->command   = (const char *)engine_root.lookup("command");
+			ep->directory = (const char *)engine_root.lookup("dir");
+			ep->alt_name  = (const char *)engine_root.lookup("alt_name");
+
+			eo.push_back(ep);
 		}
 
 		std::string scorer_command = (const char *)root.lookup("scorer_command");
@@ -650,7 +693,7 @@ int main(int argc, char *argv[])
 		stats_t s;
 
 		uint64_t start_ts = get_ts_ms();
-		play_batch(eo, scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, time_per_game, komi, n_random_stones, sgf_book_path);
+		play_batch(eo, &scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, time_per_game, komi, n_random_stones, sgf_book_path);
 		uint64_t end_ts = get_ts_ms();
 		uint64_t took_ts = end_ts - start_ts;
 
