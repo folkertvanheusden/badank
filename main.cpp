@@ -526,7 +526,7 @@ void processing_thread(const engine_parameters_t *const scorer, const int dim, c
 	for(;!*stop_flag;) {
 		work_t entry = q->pop();
 
-		if (entry.p1->command.empty()) {
+		if (entry.p1 == nullptr) {
 			dolog(info, "Work finished, terminating thread");
 			break;
 		}
@@ -561,16 +561,18 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 
 	int nr = 0;
 
-	for(int i=0; i<iterations && !stop_flag; i++) {
+	for(int i=0; i<iterations; i++) {
 		for(size_t a=0; a<n; a++) {
 			for(size_t b=0; b<n; b++) {
-				if (*stop_flag)
+				if (*stop_flag) {
+					dolog(info, "Aborted batching");
 					goto abort_batching;
+				}
 
 				if (a == b)
 					continue;
 
-				q.push({engines[a], engines[b], nr});
+				q.push({ engines[a], engines[b], nr });
 				nr++;
 			}
 		}
@@ -579,8 +581,8 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 abort_batching:
 	engine_parameters_t ep;
 
-	for(int i=0; i<concurrency && !stop_flag; i++)
-		q.push({&ep, &ep, -1});
+	for(int i=0; i<concurrency; i++)
+		q.push({nullptr, nullptr, -1});
 
     	dolog(info, "Waiting for threads to finish...");
 
