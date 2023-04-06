@@ -521,12 +521,11 @@ typedef struct {
 	int nr;
 } work_t;
 
-Queue<work_t> q;
-
-void processing_thread(const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const double time_per_game, const double komi, const int n_random_stones, std::vector<book_entry_t> *const book_entries)
+void processing_thread(const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const double time_per_game, const double komi, const int n_random_stones, std::vector<book_entry_t> *const book_entries, Queue<work_t> *const q)
 {
 	for(;!*stop_flag;) {
-		work_t entry = q.pop();
+		work_t entry = q->pop();
+
 		if (entry.p1->command.empty()) {
 			dolog(info, "Work finished, terminating thread");
 			break;
@@ -538,7 +537,7 @@ void processing_thread(const engine_parameters_t *const scorer, const int dim, c
 	}
 }
 
-void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const double time_per_game, const double komi, const int n_random_stones, const std::string & sgf_book_path)
+void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const double time_per_game, const double komi, const int n_random_stones, const std::string & sgf_book_path, std::atomic_bool *const stop_flag)
 {
 	dolog(info, "Batch starting");
 
@@ -551,10 +550,12 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 	if (sgf_book_path.empty() == false)
 		load_sgf_opening_files(sgf_book_path, &book_entries);
 
+	Queue<work_t> q;
+
 	std::vector<std::thread *> threads;
 
 	for(int i=0; i<concurrency; i++) {
-		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, &stop_flag, time_per_game, komi, n_random_stones, &book_entries);
+		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, stop_flag, time_per_game, komi, n_random_stones, &book_entries, &q);
 		threads.push_back(th);
 	}
 
@@ -563,6 +564,9 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 	for(int i=0; i<iterations && !stop_flag; i++) {
 		for(size_t a=0; a<n; a++) {
 			for(size_t b=0; b<n; b++) {
+				if (*stop_flag)
+					goto abort_batching;
+
 				if (a == b)
 					continue;
 
@@ -572,6 +576,7 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 		}
 	}
 
+abort_batching:
 	engine_parameters_t ep;
 
 	for(int i=0; i<concurrency && !stop_flag; i++)
@@ -693,7 +698,7 @@ int main(int argc, char *argv[])
 		stats_t s;
 
 		uint64_t start_ts = get_ts_ms();
-		play_batch(eo, &scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, time_per_game, komi, n_random_stones, sgf_book_path);
+		play_batch(eo, &scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, time_per_game, komi, n_random_stones, sgf_book_path, &stop_flag);
 		uint64_t end_ts = get_ts_ms();
 		uint64_t took_ts = end_ts - start_ts;
 
