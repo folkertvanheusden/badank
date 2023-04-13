@@ -340,6 +340,8 @@ typedef struct {
 	std::string command, directory, alt_name;
 	std::string name;
 
+	bool target;
+
 	std::mutex lock;
 	Glicko::Rating rating;
 } engine_parameters_t;
@@ -559,21 +561,57 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 		threads.push_back(th);
 	}
 
-	int nr = 0;
+	std::vector<engine_parameters_t *> targets;
 
-	for(int i=0; i<iterations; i++) {
-		for(size_t a=0; a<n; a++) {
-			for(size_t b=0; b<n; b++) {
-				if (*stop_flag) {
-					dolog(info, "Aborted batching");
-					goto abort_batching;
+	for(auto & engine : engines) {
+		if (engine->target)
+			targets.push_back(engine);
+	}
+
+	if (targets.empty()) {
+		dolog(info, "everybody against everybody");
+
+		int nr = 0;
+
+		for(int i=0; i<iterations; i++) {
+			for(size_t a=0; a<n; a++) {
+				for(size_t b=0; b<n; b++) {
+					if (*stop_flag) {
+						dolog(info, "Aborted batching");
+						goto abort_batching;
+					}
+
+					if (a == b)
+						continue;
+
+					q.push({ engines[a], engines[b], nr });
+					nr++;
 				}
+			}
+		}
+	}
+	else {
+		dolog(info, "gauntlet(s)");
 
-				if (a == b)
-					continue;
+		int nr = 0;
 
-				q.push({ engines[a], engines[b], nr });
-				nr++;
+		for(int i=0; i<iterations; i++) {
+			for(auto & target : targets) {
+				for(size_t a=0; a<n; a++) {
+					if (*stop_flag) {
+						dolog(info, "Aborted batching");
+						goto abort_batching;
+					}
+
+					if (target == engines[a])
+						continue;
+
+					if (engines[a] -> target)
+						continue;
+
+					q.push({ target, engines[a], nr });
+					nr++;
+				}
 			}
 		}
 	}
@@ -658,6 +696,14 @@ int main(int argc, char *argv[])
 			ep->command   = (const char *)engine_root.lookup("command");
 			ep->directory = (const char *)engine_root.lookup("dir");
 			ep->alt_name  = (const char *)engine_root.lookup("alt_name");
+
+			try {
+				ep->target = (const char *)engine_root.lookup("target");
+			}
+			catch(const libconfig::SettingNotFoundException & e) {
+				// not a problem, just not set
+				ep->target = false;
+			}
 
 			eo.push_back(ep);
 		}
