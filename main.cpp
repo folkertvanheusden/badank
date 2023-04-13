@@ -265,11 +265,17 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 		move = str_tolower(move);
 		
-		// TODO: validate move
+		// TODO: validate move, not only by scorer
 
-		scorer->play(color, move);
+		if (!scorer->play(color, move)) {
+			if (color == C_BLACK)
+				result = "W+Illegal";
+			else
+				result = "B+Illegal";
 
-		if (time_left[color] < 0) {
+			break;
+		}
+		else if (time_left[color] < 0) {
 			if (color == C_BLACK)
 				result = "W+Time";
 			else
