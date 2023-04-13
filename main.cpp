@@ -698,7 +698,7 @@ int main(int argc, char *argv[])
 			ep->alt_name  = (const char *)engine_root.lookup("alt_name");
 
 			try {
-				ep->target = (const char *)engine_root.lookup("target");
+				ep->target = engine_root.lookup("target");
 			}
 			catch(const libconfig::SettingNotFoundException & e) {
 				// not a problem, just not set
