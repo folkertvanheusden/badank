@@ -682,13 +682,18 @@ void sigh(int sig)
 int main(int argc, char *argv[])
 {
 	setlog("badank.log", debug, info);
+
 	dolog(notice, " * Badank started *");
 
 	std::vector<engine_parameters_t *> eo;  // engine objects
 
 	try {
 		libconfig::Config cfg;
-		cfg.readFile("badank.cfg");
+
+		if (argc == 2)
+			cfg.readFile(argv[1]);
+		else
+			cfg.readFile("badank.cfg");
 
 		libconfig::Setting & root = cfg.getRoot();
 

@@ -29,6 +29,8 @@ Configuration
 
 Configuration takes place in badank.cfg. Check it; you'll figure it out yourself most likely.
 
+You can select a different configuration-file by adding it to the command line.
+
 
 
 (c) 2021-2023 by Folkert van Heusden <mail@vanheusden.com>
