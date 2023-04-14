@@ -155,7 +155,7 @@ bool seed_board_from_book(const std::vector<book_entry_t> *const book_entries, G
 }
 
 // result, vector-of-sgf-moves
-std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer, const double time_per_game, const int n_random_stones, const std::vector<book_entry_t> *const book_entries)
+std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer, const double time_per_game, const double time_inc_per_move, const int n_random_stones, const std::vector<book_entry_t> *const book_entries)
 {
 	std::vector<std::string> sgf;
 
@@ -213,8 +213,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			}
 
 			uint64_t start_ts = get_ts_ms();
-			auto rc = pb->genmove(color);
-			uint64_t end_ts = get_ts_ms();
+			auto     rc       = pb->genmove(color);
+			uint64_t end_ts   = get_ts_ms();
 
 			if (rc.has_value() == false) {
 				dolog(info, "Black (%s) did not return a move", pb->getname().c_str());
@@ -226,6 +226,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			uint64_t took = end_ts - start_ts;
 			time_black += took;
 			time_left[color] -= took;
+
+			time_left[color] += time_inc_per_move * 1000;
 
 			black_n++;
 
@@ -242,8 +244,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			}
 
 			uint64_t start_ts = get_ts_ms();
-			auto rc = pw->genmove(color);
-			uint64_t end_ts = get_ts_ms();
+			auto     rc       = pw->genmove(color);
+			uint64_t end_ts   = get_ts_ms();
 
 			if (rc.has_value() == false) {
 				dolog(info, "White (%s) did not return a move", pw->getname().c_str());
@@ -255,6 +257,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			uint64_t took = end_ts - start_ts;
 			time_white += took;
 			time_left[color] -= took;
+
+			time_left[color] += time_inc_per_move * 1000;
 
 			white_n++;
 
@@ -365,7 +369,7 @@ typedef struct _stats_t_ {
 	}
 } stats_t;
 
-void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t *const ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, const double time_per_game, const double komi, const int n_random_stones, const std::vector<book_entry_t> *const book_entries)
+void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t *const ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, const double time_per_game, const double time_inc_per_move, const double komi, const int n_random_stones, const std::vector<book_entry_t> *const book_entries)
 {
 	GtpEngine *scorer = new GtpEngine(ps->command, ps->directory, "");
 
@@ -387,7 +391,7 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 
 	time_t   start_t  = time(nullptr);
 
-	auto resultrc = play(inst1, inst2, dim, scorer, time_per_game, n_random_stones, book_entries);
+	auto resultrc = play(inst1, inst2, dim, scorer, time_per_game, time_inc_per_move, n_random_stones, book_entries);
 	if (std::get<0>(resultrc).has_value() == false) {
 		dolog(info, "Game between %s and %s failed", name1.c_str(), name2.c_str());
 		delete inst2;
@@ -531,7 +535,7 @@ typedef struct {
 	int nr;
 } work_t;
 
-void processing_thread(const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const double time_per_game, const double komi, const int n_random_stones, std::vector<book_entry_t> *const book_entries, Queue<work_t> *const q)
+void processing_thread(const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const double time_per_game, const double time_inc_per_move, const double komi, const int n_random_stones, std::vector<book_entry_t> *const book_entries, Queue<work_t> *const q)
 {
 	for(;!*stop_flag;) {
 		work_t entry = q->pop();
@@ -543,11 +547,11 @@ void processing_thread(const engine_parameters_t *const scorer, const int dim, c
 
 		std::string meta = myformat("%d> ", entry.nr);
 
-		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file, s, time_per_game, komi, n_random_stones, book_entries);
+		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file, s, time_per_game, time_inc_per_move, komi, n_random_stones, book_entries);
 	}
 }
 
-void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const double time_per_game, const double komi, const int n_random_stones, const std::string & sgf_book_path, std::atomic_bool *const stop_flag)
+void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const double time_per_game, const double time_inc_per_move, const double komi, const int n_random_stones, const std::string & sgf_book_path, std::atomic_bool *const stop_flag)
 {
 	dolog(info, "Batch starting");
 
@@ -565,7 +569,7 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 	std::vector<std::thread *> threads;
 
 	for(int i=0; i<concurrency; i++) {
-		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, stop_flag, time_per_game, komi, n_random_stones, &book_entries, &q);
+		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, stop_flag, time_per_game, time_inc_per_move, komi, n_random_stones, &book_entries, &q);
 		threads.push_back(th);
 	}
 
@@ -732,6 +736,14 @@ int main(int argc, char *argv[])
 
 		double time_per_game = cfg.lookup("time_per_game");
 
+		double time_inc_per_move = 0.;
+		try {
+			time_inc_per_move = cfg.lookup("time_incremental_per_move");
+		}
+		catch(const libconfig::SettingNotFoundException & e) {
+			// not a problem, just not set
+		}
+
 		int n_random_stones = cfg.lookup("n_random_stones");
 
 		double komi = cfg.lookup("komi");
@@ -754,7 +766,7 @@ int main(int argc, char *argv[])
 		stats_t s;
 
 		uint64_t start_ts = get_ts_ms();
-		play_batch(eo, &scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, time_per_game, komi, n_random_stones, sgf_book_path, &stop_flag);
+		play_batch(eo, &scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, time_per_game, time_inc_per_move, komi, n_random_stones, sgf_book_path, &stop_flag);
 		uint64_t end_ts = get_ts_ms();
 		uint64_t took_ts = end_ts - start_ts;
 

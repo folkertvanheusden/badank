@@ -59,7 +59,7 @@ std::tuple<pid_t, int, int> exec_with_pipe(const std::string & command, const st
 		close(1);
 		close(2);
 		dup(pipe_from_proc[1]);
-		int stderr = open("/dev/null", O_WRONLY);
+		open("/dev/null", O_WRONLY);
 		close(pipe_from_proc[0]);
 
 		int fd_max = sysconf(_SC_OPEN_MAX);
