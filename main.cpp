@@ -268,6 +268,8 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		// TODO: validate move, not only by scorer
 
 		if (!scorer->play(color, move)) {
+			dolog(warning, "%s (%s) performed an illegal move", color == C_BLACK ? "black" : "white", color == C_BLACK ? pb->getname().c_str() : pw->getname().c_str());
+
 			if (color == C_BLACK)
 				result = "W+Illegal";
 			else
