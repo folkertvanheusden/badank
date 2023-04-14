@@ -166,8 +166,12 @@ std::optional<std::string> TextProgram::read(std::optional<int> timeout_ms)
 				break;
 			}
 
-			if (temp[0] == '\n')
+			if (temp[0] == '\r') {
+				// ignore
+			}
+			else if (temp[0] == '\n') {
 				return buffer;
+			}
 
 			buffer += temp;
 		}

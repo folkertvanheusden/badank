@@ -169,8 +169,11 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 	pb->boardsize(dim);
 	pw->boardsize(dim);
 
-	pb->time_settings(time_per_game, 0, 0);
-	pw->time_settings(time_per_game, 0, 0);
+	if (pb->has_command("time_settings"))  // TODO: remove 'constant'
+		pb->time_settings(time_per_game, 0, 0);
+
+	if (pw->has_command("time_settings"))
+		pw->time_settings(time_per_game, 0, 0);
 
 	if (book_entries->empty() == false) {
 		// TODO: get from book
@@ -187,6 +190,9 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			return { { }, { }, RR_ERROR };
 		}
 	}
+
+	bool w_knows_time_left = pw->has_command("time_left");
+	bool b_knows_time_left = pb->has_command("time_left");
 
 	int whitePass = 0, blackPass = 0;
 
@@ -205,12 +211,11 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		std::string move;
 
 		if (color == C_BLACK) {
-			if (pb->time_left(color, time_left[color]) == false) {
+			if (b_knows_time_left && pb->time_left(color, time_left[color]) == false) {
 				dolog(info, "Black (%s) did not respond to time_left", pb->getname().c_str());
-				// bring back when list_commands has been implemented TODO
-				// result = "?";
-				// rr = RR_ERROR;
-				// break;
+				result = "?";
+				rr = RR_ERROR;
+				break;
 			}
 
 			uint64_t start_ts = get_ts_ms();
@@ -237,12 +242,11 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 			pw->play(color, move);
 		}
 		else {
-			if (pw->time_left(color, time_left[color]) == false) {
+			if (w_knows_time_left && pw->time_left(color, time_left[color]) == false) {
 				dolog(info, "White (%s) did not respond to time_left", pb->getname().c_str());
-				// bring back when list_commands has been implemented TODO
-				// result = "?";
-				// rr = RR_ERROR;
-				// break;
+				result = "?";
+				rr = RR_ERROR;
+				break;
 			}
 
 			uint64_t start_ts = get_ts_ms();
@@ -353,7 +357,6 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 typedef struct {
 	std::string command, directory, alt_name;
 	std::string name;
-
 	bool target;
 
 	std::mutex lock;

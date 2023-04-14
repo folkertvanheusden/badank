@@ -20,8 +20,12 @@ GtpEngine::~GtpEngine()
 	delete engine;
 }
 
-std::optional<std::string> GtpEngine::getresponse(const std::optional<int> timeout_ms)
+std::optional<std::vector<std::string> > GtpEngine::getresponse(const std::optional<int> timeout_ms)
 {
+	std::vector<std::string> out;
+
+	bool has_is = false;
+
 	for(;;) {
 		auto rc = engine->read(timeout_ms);
 		if (rc.has_value() == false) {
@@ -32,17 +36,34 @@ std::optional<std::string> GtpEngine::getresponse(const std::optional<int> timeo
 		if (rc.value().size() >= 1) {
 			dolog(debug, "%s> %s", name.c_str(), rc.value().c_str());
 
-			std::string data = trim(rc.value().substr(1));
+			if (rc.value().at(0) == '=' || has_is) {
+				std::string add = rc.value();
 
-			if (rc.value().at(0) == '=')
-				return data;
+				if (has_is == false) {
+					has_is = true;
 
-			if (rc.value().at(0) == '?') {
-				dolog(warning, "Program %s returned an error: %s", name.c_str(), data.c_str());
+					std::size_t space = add.find(' ');
+					if (space != std::string::npos)
+						add = add.substr(space + 1);
+				}
+
+				out.push_back(add);
+			}
+			else if (rc.value().at(0) == '?') {
+				dolog(warning, "Program %s returned an error: %s", name.c_str(), rc.value().c_str());
 				return { };
 			}
 		}
+		else {
+			dolog(debug, "%s>---", name.c_str());
+			break;
+		}
 	}
+
+	if (out.empty())
+		return { };
+
+	return out;
 }
 
 std::optional<std::string> GtpEngine::genmove(const color_t c)
@@ -51,8 +72,12 @@ std::optional<std::string> GtpEngine::genmove(const color_t c)
 
 	dolog(debug, "%s< %s", name.c_str(), cmd.c_str());
 
-	if (engine->write(cmd))
-		return getresponse({ });
+	if (engine->write(cmd)) {
+		auto rc = getresponse({ });
+
+		if (rc.has_value())
+			return rc.value().at(0);
+	}
 
 	return { };
 }
@@ -125,16 +150,24 @@ bool GtpEngine::clearboard()
 
 std::optional<std::string> GtpEngine::getscore()
 {
-	if (engine->write("final_score"))
-		return getresponse({ });
+	if (engine->write("final_score")) {
+		auto rc = getresponse({ });
+
+		if (rc.has_value())
+			return rc.value().at(0);
+	}
 
 	return { };
 }
 
 std::optional<std::string> GtpEngine::protocol_version()
 {
-	if (engine->write("protocol_version"))
-		return getresponse(30000);  // 30s startup time max.
+	if (engine->write("protocol_version")) {
+		auto rc = getresponse(30000);  // 30s startup time max.
+
+		if (rc.has_value())
+			return rc.value().at(0);
+	}
 
 	return { };
 }
@@ -145,7 +178,7 @@ std::string GtpEngine::getname()
 		auto rc = getresponse({ });
 
 		if (rc.has_value())
-			name = rc.value();
+			name = rc.value().at(0);
 		else
 			name = program;
 	}
@@ -153,4 +186,21 @@ std::string GtpEngine::getname()
 	dolog(info, "\"%s\" (%s) plays under PID %d", name.c_str(), program.c_str(), engine->getPid());
 
 	return name;
+}
+
+bool GtpEngine::has_command(const std::string & command)
+{
+	if (name.empty() && engine->write("list_commands")) {
+		auto rc = getresponse({ });
+
+		if (rc.has_value() == false)
+			return false;
+
+		for(auto & line : rc.value()) {
+			if (line == command)
+				return true;
+		}
+	}
+
+	return false;
 }

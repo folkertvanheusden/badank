@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "color.h"
 #include "proc.h"
@@ -14,7 +15,7 @@ private:
 	std::string name;
 	TextProgram *engine { nullptr };
 
-	std::optional<std::string> getresponse(const std::optional<int> timeout_ms);
+	std::optional<std::vector<std::string> > getresponse(const std::optional<int> timeout_ms);
 
 public:
 	GtpEngine(const std::string & program, const std::string & dir, const std::string & alt_name);
@@ -27,6 +28,8 @@ public:
 	std::optional<std::string> genmove(const color_t c);
 	bool time_left(const color_t c, const int time_left_ms);
 	bool play(const color_t c, const std::string & vertex);
+
+	bool has_command(const std::string & command);
 
 	bool boardsize(const int dim);
 	bool clearboard();
