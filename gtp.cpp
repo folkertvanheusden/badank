@@ -150,5 +150,7 @@ std::string GtpEngine::getname()
 			name = program;
 	}
 
+	dolog(notice, "\"%s\" (%s) plays under PID %d", name.c_str(), program.c_str(), engine->getPid());
+
 	return name;
 }
