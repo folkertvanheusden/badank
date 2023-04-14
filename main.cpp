@@ -207,9 +207,10 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		if (color == C_BLACK) {
 			if (pb->time_left(color, time_left[color]) == false) {
 				dolog(info, "Black (%s) did not respond to time_left", pb->getname().c_str());
-				result = "?";
-				rr = RR_ERROR;
-				break;
+				// bring back when list_commands has been implemented TODO
+				// result = "?";
+				// rr = RR_ERROR;
+				// break;
 			}
 
 			uint64_t start_ts = get_ts_ms();
@@ -237,10 +238,11 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		}
 		else {
 			if (pw->time_left(color, time_left[color]) == false) {
-				dolog(info, "Black (%s) did not respond to time_left", pb->getname().c_str());
-				result = "?";
-				rr = RR_ERROR;
-				break;
+				dolog(info, "White (%s) did not respond to time_left", pb->getname().c_str());
+				// bring back when list_commands has been implemented TODO
+				// result = "?";
+				// rr = RR_ERROR;
+				// break;
 			}
 
 			uint64_t start_ts = get_ts_ms();
