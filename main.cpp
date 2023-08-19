@@ -690,15 +690,14 @@ int main(int argc, char *argv[])
 
 	dolog(notice, " * Badank started *");
 
+	std::string cfg_file = argc == 2 ? argv[1] : "badank.cfg";
+
 	std::vector<engine_parameters_t *> eo;  // engine objects
 
 	try {
 		libconfig::Config cfg;
 
-		if (argc == 2)
-			cfg.readFile(argv[1]);
-		else
-			cfg.readFile("badank.cfg");
+		cfg.readFile(cfg_file.c_str());
 
 		libconfig::Setting & root = cfg.getRoot();
 
@@ -810,6 +809,9 @@ int main(int argc, char *argv[])
 	}
 	catch(const libconfig::ParseException & pe) {
 		error_exit(false, "Error in \"%s\" on line %d: %s", pe.getFile(), pe.getLine(), pe.getError());
+	}
+	catch(const libconfig::FileIOException & fie) {
+		error_exit(false, "Error loading \"%s\"", cfg_file.c_str());
 	}
 
 	dolog(notice, " * Badank finished *");
