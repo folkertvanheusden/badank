@@ -239,6 +239,10 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 	run_result_t rr     = RR_OK;
 
+	insert_result(s, pb->getname(), "black games played");
+
+	insert_result(s, pw->getname(), "white games played");
+
 	bool pass[2] { false, false };
 
 	for(;;) {
