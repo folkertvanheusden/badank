@@ -220,13 +220,13 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 	if (pb->has_command("time_settings"))
 		pb->time_settings(tc.main_time, tc.byo_yomi_time, tc.byo_yomi_stones);
-	else
-		use_time_left[C_BLACK] = pb->has_command("time_left");
+
+	use_time_left[C_BLACK] = pb->has_command("time_left");
 
 	if (pw->has_command("time_settings"))
 		pw->time_settings(tc.main_time, tc.byo_yomi_time, tc.byo_yomi_stones);
-	else
-		use_time_left[C_WHITE] = pw->has_command("time_left");
+
+	use_time_left[C_WHITE] = pw->has_command("time_left");
 
 	if (book_entries->empty() == false) {
 		// TODO: get from book
@@ -273,7 +273,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		else
 			dolog(debug, "Player %s has %.3f seconds/%d stones left, black/white pass: %d/%d", color_name(color).c_str(), time_left[color] / 1000., stones_to_do[color], pass[C_BLACK], pass[C_WHITE]);
 
-		if (use_time_left[color] && ge[color]->time_left(color, time_left[color]) == false) {
+		if (use_time_left[color] && ge[color]->time_left(color, time_left[color], ts[color] == ts_main_time ? 0 : stones_to_do[color]) == false) {
 			dolog(info, "%s (%s) did not respond to time_left", color_name(color).c_str(), ge[color]->getname().c_str());
 			result = "?";
 			rr = RR_ERROR;

@@ -26,7 +26,7 @@ public:
 	bool time_settings(const int main_time, const int byo_yomi_time, const int byo_yomi_stones);
 
 	std::optional<std::string> genmove(const color_t c);
-	bool time_left(const color_t c, const int time_left_ms);
+	bool time_left(const color_t c, const int time_left_ms, const int n_stones);
 	bool play(const color_t c, const std::string & vertex);
 
 	bool has_command(const std::string & command);

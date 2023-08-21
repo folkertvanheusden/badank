@@ -118,9 +118,9 @@ bool GtpEngine::time_settings(const int main_time, const int byo_yomi_time, cons
 	return false;
 }
 
-bool GtpEngine::time_left(const color_t c, const int time_left_ms)
+bool GtpEngine::time_left(const color_t c, const int time_left_ms, const int n_stones)
 {
-	std::string cmd = myformat("time_left %c %d 0", c == C_WHITE ? 'w' : 'b', time_left_ms / 1000);
+	std::string cmd = myformat("time_left %c %d %d", c == C_WHITE ? 'w' : 'b', time_left_ms / 1000, n_stones);
 
 	dolog(debug, "%s< %s", name.c_str(), cmd.c_str());
 
