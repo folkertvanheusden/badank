@@ -677,6 +677,9 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 
 					q.push({ target, engines[a], nr });
 					nr++;
+
+					q.push({ engines[a], target, nr });
+					nr++;
 				}
 			}
 		}
