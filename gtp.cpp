@@ -190,7 +190,7 @@ std::string GtpEngine::getname()
 
 bool GtpEngine::has_command(const std::string & command)
 {
-	if (name.empty() && engine->write("list_commands")) {
+	if (engine->write("list_commands")) {
 		auto rc = getresponse({ });
 
 		if (rc.has_value() == false)
