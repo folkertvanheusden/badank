@@ -186,8 +186,21 @@ void insert_result(stats_t *const s, const std::string & name, const std::string
 	}
 }
 
+std::string color_name(const color_t color)
+{
+	return color == C_BLACK ? "black" : "white";
+}
+
+typedef struct {
+	double main_time;  // in (fractions of) seconds
+	double byo_yomi_time;
+	int    byo_yomi_stones;
+} time_control_t;
+
+typedef enum { ts_main_time, ts_byo_yomi_time } time_state_t;
+
 // result, vector-of-sgf-moves
-std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer, const double time_per_game, const double time_inc_per_move, const int n_random_stones, const std::vector<book_entry_t> *const book_entries, stats_t *const s)
+std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> play(GtpEngine *const pb, GtpEngine *const pw, const int dim, GtpEngine *const scorer, const time_control_t & tc, const int n_random_stones, const std::vector<book_entry_t> *const book_entries, stats_t *const s)
 {
 	std::vector<std::string> sgf;
 
@@ -201,11 +214,19 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 	pb->boardsize(dim);
 	pw->boardsize(dim);
 
-	if (pb->has_command("time_settings"))  // TODO: remove 'constant'
-		pb->time_settings(time_per_game, 0, 0);
+	GtpEngine *ge[] = { pb, pw };
+
+	bool use_time_left[] = { false, false };
+
+	if (pb->has_command("time_settings"))
+		pb->time_settings(tc.main_time, tc.byo_yomi_time, tc.byo_yomi_stones);
+	else
+		use_time_left[C_BLACK] = pb->has_command("time_left");
 
 	if (pw->has_command("time_settings"))
-		pw->time_settings(time_per_game, 0, 0);
+		pw->time_settings(tc.main_time, tc.byo_yomi_time, tc.byo_yomi_stones);
+	else
+		use_time_left[C_WHITE] = pw->has_command("time_left");
 
 	if (book_entries->empty() == false) {
 		// TODO: get from book
@@ -223,15 +244,12 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		}
 	}
 
-	bool w_knows_time_left = pw->has_command("time_left");
-	bool b_knows_time_left = pb->has_command("time_left");
+	uint64_t time_total[] = { 0, 0 };
+	int      n_played[] = { 0, 0 };
 
-	uint64_t time_white = 0;
-	uint64_t time_black = 0;
-	int      white_n    = 0;
-	int      black_n    = 0;
-
-	int      time_left[] = { int(time_per_game * 1000), int(time_per_game * 1000) };
+	time_state_t ts[]           = { ts_main_time, ts_main_time };
+	int          time_left[]    = { int(tc.main_time * 1000), int(tc.main_time * 1000) };
+	int          stones_to_do[] = { 0, 0 };
 
 	color_t  color      = C_BLACK;
 
@@ -248,77 +266,64 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 	for(;;) {
 		std::string move;
 
-		dolog(debug, "Player %s has %.3f seconds left, black/white pass: %d/%d", color == C_BLACK ? "black" : "white", time_left[color] / 1000., pass[C_BLACK], pass[C_WHITE]);
+		color_t opponent_color = color == C_BLACK ? C_WHITE : C_BLACK;
 
-		if (color == C_BLACK) {
-			if (b_knows_time_left && pb->time_left(color, time_left[color]) == false) {
-				dolog(info, "Black (%s) did not respond to time_left", pb->getname().c_str());
-				result = "?";
-				rr = RR_ERROR;
-				break;
-			}
+		if (ts[color] == ts_main_time)
+			dolog(debug, "Player %s has %.3f seconds/, black/white pass: %d/%d", color_name(color).c_str(), time_left[color] / 1000., pass[C_BLACK], pass[C_WHITE]);
+		else
+			dolog(debug, "Player %s has %.3f seconds/%d stones left, black/white pass: %d/%d", color_name(color).c_str(), time_left[color] / 1000., stones_to_do[color], pass[C_BLACK], pass[C_WHITE]);
 
-			uint64_t start_ts = get_ts_ms();
-			auto     rc       = pb->genmove(color);
-			uint64_t end_ts   = get_ts_ms();
-
-			if (rc.has_value() == false) {
-				dolog(info, "Black (%s) did not return a move", pb->getname().c_str());
-				result = "?";
-				rr = RR_ERROR;
-				break;
-			}
-
-			uint64_t took = end_ts - start_ts;
-			time_black += took;
-			time_left[color] -= took;
-
-			time_left[color] += time_inc_per_move * 1000;
-
-			black_n++;
-
-			move = rc.value();
-
-			pw->play(color, move);
+		if (use_time_left[color] && ge[color]->time_left(color, time_left[color]) == false) {
+			dolog(info, "%s (%s) did not respond to time_left", color_name(color).c_str(), ge[color]->getname().c_str());
+			result = "?";
+			rr = RR_ERROR;
+			break;
 		}
-		else {
-			if (w_knows_time_left && pw->time_left(color, time_left[color]) == false) {
-				dolog(info, "White (%s) did not respond to time_left", pb->getname().c_str());
-				result = "?";
-				rr = RR_ERROR;
-				break;
-			}
 
-			uint64_t start_ts = get_ts_ms();
-			auto     rc       = pw->genmove(color);
-			uint64_t end_ts   = get_ts_ms();
+		uint64_t start_ts = get_ts_ms();
+		auto     rc       = ge[color]->genmove(color);
+		uint64_t end_ts   = get_ts_ms();
 
-			if (rc.has_value() == false) {
-				dolog(info, "White (%s) did not return a move", pw->getname().c_str());
-				result = "?";
-				rr = RR_ERROR;
-				break;
-			}
-
-			uint64_t took = end_ts - start_ts;
-			time_white += took;
-			time_left[color] -= took;
-
-			time_left[color] += time_inc_per_move * 1000;
-
-			white_n++;
-
-			move = rc.value();
-
-			pb->play(color, move);
+		if (rc.has_value() == false) {
+			dolog(info, "%s (%s) did not return a move", color_name(color).c_str(), ge[color]->getname().c_str());
+			result = "?";
+			rr = RR_ERROR;
+			break;
 		}
+
+		uint64_t took = end_ts - start_ts;
+		time_total[color] += took;
+		time_left[color] -= took;
+		stones_to_do[color]--;
+
+		if (time_left[color] < 0) {
+			if (ts[color] == ts_main_time)
+				ts[color] = ts_byo_yomi_time;
+			else {
+				if (stones_to_do[color] != 0) {
+					dolog(info, "%s (%s) did not return enought byo yomi moves: %d left", color_name(color).c_str(), ge[color]->getname().c_str(), stones_to_do[color]);
+					result = "?";
+					rr = RR_ERROR;
+					break;
+				}
+			}
+
+			time_left[color]    = int(tc.byo_yomi_time * 1000);
+			stones_to_do[color] = tc.byo_yomi_stones;
+		}
+
+		n_played[color]++;
+
+		move = rc.value();
+
+		ge[opponent_color]->play(color, move);
 
 		move = str_tolower(move);
 		
 		// TODO: validate move, not only by scorer
 
 		if (!scorer->play(color, move)) {
-			dolog(warning, "%s (%s) performed an illegal move", color == C_BLACK ? "black" : "white", color == C_BLACK ? pb->getname().c_str() : pw->getname().c_str());
+			dolog(warning, "%s (%s) performed an illegal move", color_name(color).c_str(), ge[color]->getname().c_str());
 
 			if (color == C_BLACK) {
 				result = "W+Illegal";
@@ -393,13 +398,12 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 				sgf.push_back(myformat("W[%s]", move_str.c_str()));
 		}
 
-		if (color == C_BLACK)
-			color = C_WHITE;
-		else
-			color = C_BLACK;
+		color = opponent_color;
 	}
 
-	dolog(info, "Black used %.3fs per move (%.3f total), %d moves, white %.3fs per move (%.3f total), %d moves", time_black / 1000. / black_n, time_black / 1000., black_n, time_white / 1000. / white_n, time_white / 1000., white_n);
+	dolog(info, "Black used %.3fs per move (%.3f total), %d moves, white %.3fs per move (%.3f total), %d moves",
+			time_total[C_BLACK] / 1000. / n_played[C_BLACK], time_total[C_BLACK] / 1000., n_played[C_BLACK],
+			time_total[C_WHITE] / 1000. / n_played[C_WHITE], time_total[C_WHITE] / 1000., n_played[C_WHITE]);
 
 	if (result.has_value() == false)
 		result = scorer->getscore();
@@ -408,7 +412,10 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		auto b_result = pb->getscore();
 		auto w_result = pw->getscore();
 
-		dolog(info, "Result according to black: %s, according to white: %s, scorer: %s", b_result.has_value() ? b_result.value().c_str() : "-", w_result.has_value() ? w_result.value().c_str() : "-", result.value().c_str());
+		dolog(info, "Result according to black: %s, according to white: %s, scorer: %s",
+				b_result.has_value() ? b_result.value().c_str() : "-",
+				w_result.has_value() ? w_result.value().c_str() : "-",
+				result.value().c_str());
 	}
 
 	return { result, sgf, rr };
@@ -423,7 +430,7 @@ typedef struct {
 	Glicko::Rating rating;
 } engine_parameters_t;
 
-void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t *const ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, const double time_per_game, const double time_inc_per_move, const double komi, const int n_random_stones, const std::vector<book_entry_t> *const book_entries)
+void play_game(const std::string & meta_str, engine_parameters_t *const p1, engine_parameters_t *const p2, const engine_parameters_t *const ps, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, const time_control_t & tc, const double komi, const int n_random_stones, const std::vector<book_entry_t> *const book_entries)
 {
 	GtpEngine *scorer = new GtpEngine(ps->command, ps->directory, "");
 
@@ -445,7 +452,7 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 
 	time_t   start_t  = time(nullptr);
 
-	auto resultrc = play(inst1, inst2, dim, scorer, time_per_game, time_inc_per_move, n_random_stones, book_entries, s);
+	auto resultrc = play(inst1, inst2, dim, scorer, tc, n_random_stones, book_entries, s);
 	if (std::get<0>(resultrc).has_value() == false) {
 		dolog(info, "Game between %s and %s failed", name1.c_str(), name2.c_str());
 		delete inst2;
@@ -548,7 +555,7 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 		if (fh) {
 			tm *tm = localtime(&start_t);
 
-			fprintf(fh, "(;AP[Badank]DT[%04d-%02d-%02d]GM[1]TM[%d]KM[%f]SZ[%d]PW[%s]\nPB[%s]\nRE[%s]\nC[%s]RU[Tromp/Taylor]\n(", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, int(time_per_game), komi, dim, name2.c_str(), name1.c_str(), str_toupper(result).c_str(), meta_str.c_str());
+			fprintf(fh, "(;AP[Badank]DT[%04d-%02d-%02d]GM[1]KM[%f]SZ[%d]PW[%s]\nPB[%s]\nRE[%s]\nC[%s]RU[Tromp/Taylor]\n(", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, komi, dim, name2.c_str(), name1.c_str(), str_toupper(result).c_str(), meta_str.c_str());
 
 			for(const std::string & vertex : std::get<1>(resultrc))
 				fprintf(fh, ";%s", vertex.c_str());
@@ -589,7 +596,7 @@ typedef struct {
 	int nr;
 } work_t;
 
-void processing_thread(const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const double time_per_game, const double time_inc_per_move, const double komi, const int n_random_stones, std::vector<book_entry_t> *const book_entries, Queue<work_t> *const q)
+void processing_thread(const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, stats_t *const s, std::atomic_bool *const stop_flag, const time_control_t & tc, const double komi, const int n_random_stones, std::vector<book_entry_t> *const book_entries, Queue<work_t> *const q)
 {
 	for(;!*stop_flag;) {
 		work_t entry = q->pop();
@@ -601,11 +608,11 @@ void processing_thread(const engine_parameters_t *const scorer, const int dim, c
 
 		std::string meta = myformat("%d> ", entry.nr);
 
-		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file, s, time_per_game, time_inc_per_move, komi, n_random_stones, book_entries);
+		play_game(meta, entry.p1, entry.p2, scorer, dim, pgn_file, sgf_file, s, tc, komi, n_random_stones, book_entries);
 	}
 }
 
-void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const double time_per_game, const double time_inc_per_move, const double komi, const int n_random_stones, const std::string & sgf_book_path, std::atomic_bool *const stop_flag)
+void play_batch(const std::vector<engine_parameters_t *> & engines, const engine_parameters_t *const scorer, const int dim, const std::string & pgn_file, const std::string & sgf_file, const int concurrency, const int iterations, stats_t *const s, const time_control_t & tc, const double komi, const int n_random_stones, const std::string & sgf_book_path, std::atomic_bool *const stop_flag)
 {
 	dolog(info, "Batch starting");
 
@@ -623,7 +630,7 @@ void play_batch(const std::vector<engine_parameters_t *> & engines, const engine
 	std::vector<std::thread *> threads;
 
 	for(int i=0; i<concurrency; i++) {
-		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, stop_flag, time_per_game, time_inc_per_move, komi, n_random_stones, &book_entries, &q);
+		std::thread *th = new std::thread(processing_thread, scorer, dim, pgn_file, sgf_file, s, stop_flag, tc, komi, n_random_stones, &book_entries, &q);
 		threads.push_back(th);
 	}
 
@@ -812,15 +819,10 @@ int main(int argc, char *argv[])
 
 		int dim = cfg.lookup("board_size");
 
-		double time_per_game = cfg.lookup("time_per_game");
-
-		double time_inc_per_move = 0.;
-		try {
-			time_inc_per_move = cfg.lookup("time_incremental_per_move");
-		}
-		catch(const libconfig::SettingNotFoundException & e) {
-			// not a problem, just not set
-		}
+		time_control_t tc { 0 };
+		tc.main_time       = cfg.lookup("main_time");
+		tc.byo_yomi_time   = cfg.lookup("byo_yomi_time");
+		tc.byo_yomi_stones = cfg.lookup("byo_yomi_stones");
 
 		int n_random_stones = cfg.lookup("n_random_stones");
 
@@ -844,7 +846,7 @@ int main(int argc, char *argv[])
 		stats_t s;
 
 		uint64_t start_ts = get_ts_ms();
-		play_batch(eo, &scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, time_per_game, time_inc_per_move, komi, n_random_stones, sgf_book_path, &stop_flag);
+		play_batch(eo, &scorer, dim, pgn_file, sgf_file, concurrency, n_games, &s, tc, komi, n_random_stones, sgf_book_path, &stop_flag);
 		uint64_t end_ts = get_ts_ms();
 		uint64_t took_ts = end_ts - start_ts;
 
