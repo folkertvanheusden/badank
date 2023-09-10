@@ -813,25 +813,25 @@ int main(int argc, char *argv[])
 
 		std::string sgf_file = (const char *)root.lookup("sgf_file");
 
-		int concurrency = cfg.lookup("concurrency");
+		int concurrency = root.lookup("concurrency");
 
-		int n_games = cfg.lookup("n_games");
+		int n_games = root.lookup("n_games");
 
-		int dim = cfg.lookup("board_size");
+		int dim = root.lookup("board_size");
 
 		time_control_t tc { 0 };
-		tc.main_time       = cfg.lookup("main_time");
-		tc.byo_yomi_time   = cfg.lookup("byo_yomi_time");
-		tc.byo_yomi_stones = cfg.lookup("byo_yomi_stones");
+		tc.main_time       = root.lookup("main_time");
+		tc.byo_yomi_time   = root.lookup("byo_yomi_time");
+		tc.byo_yomi_stones = root.lookup("byo_yomi_stones");
 
-		int n_random_stones = cfg.lookup("n_random_stones");
+		int n_random_stones = root.lookup("n_random_stones");
 
-		double komi = cfg.lookup("komi");
+		double komi = root.lookup("komi");
 
 		std::string sgf_book_path;
 
 		try {
-			sgf_book_path = (const char *)cfg.lookup("sgf_book_path");
+			sgf_book_path = (const char *)root.lookup("sgf_book_path");
 		}
 		catch(const libconfig::SettingNotFoundException & e) {
 			// not a problem, just not set
