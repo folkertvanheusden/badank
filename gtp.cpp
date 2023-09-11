@@ -188,6 +188,11 @@ std::string GtpEngine::getname()
 	return name;
 }
 
+std::string GtpEngine::get_loghelper()
+{
+	return myformat("%d", engine->getPid());
+}
+
 bool GtpEngine::has_command(const std::string & command)
 {
 	if (engine->write("list_commands")) {

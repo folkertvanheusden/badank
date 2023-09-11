@@ -37,6 +37,6 @@ public:
 	std::optional<std::string> getscore();
 
 	std::optional<std::string> protocol_version();
-
+	std::string get_loghelper();
 	std::string getname();
 };
