@@ -323,15 +323,15 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		// TODO: validate move, not only by scorer
 
 		if (!scorer->play(color, move)) {
-			dolog(warning, "%s (%s) performed an illegal move", color_name(color).c_str(), ge[color]->getname().c_str());
+			dolog(warning, "%s (%s) performed an illegal move (move %d)", color_name(color).c_str(), ge[color]->getname().c_str(), n_played[color]);
 
 			if (color == C_BLACK) {
 				result = "W+Illegal";
-				insert_result(s, pb->getname(), "white illegal move");
+				insert_result(s, pb->getname(), "black illegal move");
 			}
 			else {
 				result = "B+Illegal";
-				insert_result(s, pw->getname(), "black illegal move");
+				insert_result(s, pw->getname(), "white illegal move");
 			}
 
 			break;
@@ -339,11 +339,11 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		else if (time_left[color] < 0) {
 			if (color == C_BLACK) {
 				result = "W+Time";
-				insert_result(s, pb->getname(), "white out of time");
+				insert_result(s, pb->getname(), "black out of time");
 			}
 			else {
 				result = "B+Time";
-				insert_result(s, pw->getname(), "black out of time");
+				insert_result(s, pw->getname(), "white out of time");
 			}
 
 			break;
@@ -370,11 +370,11 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		else if (move == "resign") {
 			if (color == C_BLACK) {
 				result = "W+Resign";
-				insert_result(s, pb->getname(), "white resign");
+				insert_result(s, pb->getname(), "black resign");
 			}
 			else {
 				result = "B+Resign";
-				insert_result(s, pw->getname(), "black resign");
+				insert_result(s, pw->getname(), "white resign");
 			}
 
 			break;
