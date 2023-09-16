@@ -285,7 +285,7 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		uint64_t end_ts   = get_ts_ms();
 
 		if (rc.has_value() == false) {
-			dolog(info, "%s (%s) did not return a move", color_name(color).c_str(), ge[color]->getname().c_str());
+			dolog(info, "%s (%s) did not return a move (%s)", color_name(color).c_str(), ge[color]->getname().c_str(), ge[color]->get_loghelper().c_str());
 			result = "?";
 			rr = RR_ERROR;
 			break;
@@ -476,31 +476,20 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 
 	std::string result_pgn = "1/2-1/2";
 
+	double p1_v = 0.0;
+	double p2_v = 0.0;
+
 	if (result.at(0) == 'b') {
 		result_pgn = "0-1";
 
-		{
-			std::unique_lock<std::mutex> lck(p1->lock);
-			p1->rating.Update(p2->rating, 1.0);
-		}
-
-		{
-			std::unique_lock<std::mutex> lck(p2->lock);
-			p2->rating.Update(p1->rating, 0.0);
-		}
+		p1_v = 1.0;
+		p2_v = 0.0;
 	}
 	else if (result.at(0) == 'w') {
 		result_pgn = "1-0";
 
-		{
-			std::unique_lock<std::mutex> lck(p1->lock);
-			p1->rating.Update(p2->rating, 0.0);
-		}
-
-		{
-			std::unique_lock<std::mutex> lck(p2->lock);
-			p2->rating.Update(p1->rating, 1.0);
-		}
+		p1_v = 0.0;
+		p2_v = 1.0;
 	}
 	else if (result.at(0) == '?') {
 		// some error
@@ -517,30 +506,27 @@ void play_game(const std::string & meta_str, engine_parameters_t *const p1, engi
 		s->errors_lock.unlock();
 	}
 	else {
+		p1_v = 0.5;
+		p2_v = 0.5;
+	}
+
+	if (result.at(0) != '?') {
 		{
 			std::unique_lock<std::mutex> lck(p1->lock);
-			p1->rating.Update(p2->rating, 0.5);
+			p1->rating.Update(p2->rating, p1_v);
+			p1->rating.Apply();
 		}
 
 		{
 			std::unique_lock<std::mutex> lck(p2->lock);
-			p2->rating.Update(p1->rating, 0.5);
+			p2->rating.Update(p1->rating, p2_v);
+			p2->rating.Apply();
 		}
 	}
 
 	game_file_lock.lock();
 
 	if (result.at(0) != '?') {
-		{
-			std::unique_lock<std::mutex> lck(p1->lock);
-			p1->rating.Apply();
-		}
-
-		{
-			std::unique_lock<std::mutex> lck(p2->lock);
-			p2->rating.Apply();
-		}
-
 		if (pgn_file.empty() == false) {
 			FILE *fh = fopen(pgn_file.c_str(), "a+");
 			if (fh) {
