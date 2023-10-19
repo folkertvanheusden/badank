@@ -3,4 +3,4 @@
 
 #pragma once
 
-typedef enum { C_WHITE = 0, C_BLACK } color_t;
+typedef enum { C_BLACK = 0, C_WHITE = 1 } color_t;
