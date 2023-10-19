@@ -18,6 +18,8 @@ How to build
 
 Required: cmake & libconfig++-dev
 
+When clone'ing, use --recursive as there's glicko2 submodule used.
+
 * mkdir build
 * cd build
 * cmake ..
