@@ -401,9 +401,9 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		color = opponent_color;
 	}
 
-	dolog(info, "Black used %.3fs per move (%.3f total), %d moves, white %.3fs per move (%.3f total), %d moves",
-			time_total[C_BLACK] / 1000. / n_played[C_BLACK], time_total[C_BLACK] / 1000., n_played[C_BLACK],
-			time_total[C_WHITE] / 1000. / n_played[C_WHITE], time_total[C_WHITE] / 1000., n_played[C_WHITE]);
+	dolog(info, "Black (%s) used %.3fs per move (%.3f total), %d moves, white (%s) used %.3fs per move (%.3f total), %d moves",
+			pb->getname().c_str(), time_total[C_BLACK] / 1000. / n_played[C_BLACK], time_total[C_BLACK] / 1000., n_played[C_BLACK],
+			pw->getname().c_str(), time_total[C_WHITE] / 1000. / n_played[C_WHITE], time_total[C_WHITE] / 1000., n_played[C_WHITE]);
 
 	if (result.has_value() == false)
 		result = scorer->getscore();
