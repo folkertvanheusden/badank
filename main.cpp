@@ -316,13 +316,26 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 		move = rc.value();
 
-		ge[opponent_color]->play(color, move);
+		if (move != "resign")
+			ge[opponent_color]->play(color, move);
 
 		move = str_tolower(move);
 		
 		// TODO: validate move, not only by scorer
 
-		if (!scorer->play(color, move)) {
+		if (move == "resign") {
+			if (color == C_BLACK) {
+				result = "W+Resign";
+				insert_result(s, pb->getname(), "black resign");
+			}
+			else {
+				result = "B+Resign";
+				insert_result(s, pw->getname(), "white resign");
+			}
+
+			break;
+		}
+		else if (!scorer->play(color, move)) {
 			dolog(warning, "%s (%s) performed an illegal move (move %d, %s)", color_name(color).c_str(), ge[color]->getname().c_str(), n_played[color], ge[color]->get_loghelper().c_str());
 
 			if (color == C_BLACK) {
@@ -366,18 +379,6 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 
 			if (end)
 				break;
-		}
-		else if (move == "resign") {
-			if (color == C_BLACK) {
-				result = "W+Resign";
-				insert_result(s, pb->getname(), "black resign");
-			}
-			else {
-				result = "B+Resign";
-				insert_result(s, pw->getname(), "white resign");
-			}
-
-			break;
 		}
 		else {
 			pass[C_BLACK] = pass[C_WHITE] = false;
