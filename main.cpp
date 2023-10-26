@@ -56,7 +56,7 @@ bool seed_board_randomly(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngi
 
 			in_use[v] = true;
 
-			color_t c = i & 1 ? C_BLACK : C_WHITE;
+			color_t c = i & 1 ? C_WHITE : C_BLACK;
 
 			const int x = v % dim;
 			const int y = v / dim;
@@ -245,17 +245,17 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 	}
 
 	uint64_t time_total[] = { 0, 0 };
-	int      n_played[] = { 0, 0 };
+	int      n_played[]   = { 0, 0 };
 
 	time_state_t ts[]           = { ts_main_time, ts_main_time };
 	int          time_left[]    = { int(tc.main_time * 1000), int(tc.main_time * 1000) };
 	int          stones_to_do[] = { 0, 0 };
 
-	color_t  color      = C_BLACK;
+	color_t  color  = C_BLACK;
 
 	std::optional<std::string> result;
 
-	run_result_t rr     = RR_OK;
+	run_result_t rr = RR_OK;
 
 	insert_result(s, pb->getname(), "black games played");
 
