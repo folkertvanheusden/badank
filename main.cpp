@@ -1,11 +1,13 @@
 // (C) 2021-2023 by Folkert van Heusden <mail@vanheusden.com>
 // Released under MIT license
 
+#include <algorithm>
 #include <atomic>
 #include <libconfig.h++>
 #include <map>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,14 +34,30 @@ std::atomic_bool stop_flag { false };
 
 typedef enum { RR_OK, RR_ERROR, RR_TIMEOUT } run_result_t;
 
+auto produce_seed()
+{
+	std::vector<unsigned int> random_data(std::mt19937::state_size);
+
+	std::random_device source;
+	std::generate(std::begin(random_data), std::end(random_data), [&](){return source();});
+
+	return std::seed_seq(std::begin(random_data), std::end(random_data));
+}
+
+thread_local auto mt_seed = produce_seed();
+thread_local std::mt19937_64 gen { mt_seed };
+
 bool seed_board_randomly(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngine *const scorer, const int dim, const int n_random_stones, std::vector<std::string> *const sgf)
 {
 	enum { SR_OK, SR_RETRY, SR_FAIL } seed_result = SR_FAIL;
 
+	const int dimsq  = dim * dim;
+
 	std::vector<std::string> sgf_temp;
 
+        std::uniform_int_distribution<> rng(0, dimsq - 1);
+
 	do {
-		const int dimsq  = dim * dim;
 		bool     *in_use = new bool[dimsq]();
 
 		sgf_temp.clear();
@@ -50,7 +68,7 @@ bool seed_board_randomly(GtpEngine *const inst1, GtpEngine *const inst2, GtpEngi
 			int v = 0;
 
 			do {
-				v = rand() % dimsq;
+				v = rng(gen);
 			}
 			while(in_use[v]);
 
