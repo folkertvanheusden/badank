@@ -213,6 +213,7 @@ typedef struct {
 	double main_time;  // in (fractions of) seconds
 	double byo_yomi_time;
 	int    byo_yomi_stones;
+	bool   constant_time;
 } time_control_t;
 
 typedef enum { ts_main_time, ts_byo_yomi_time } time_state_t;
@@ -310,24 +311,34 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 		}
 
 		uint64_t took = end_ts - start_ts;
-		time_total[color] += took;
-		time_left[color] -= took;
-		stones_to_do[color]--;
 
-		if (time_left[color] < 0) {
-			if (ts[color] == ts_main_time)
-				ts[color] = ts_byo_yomi_time;
-			else {
-				if (stones_to_do[color] != 0) {
-					dolog(info, "%s (%s) did not return enought byo yomi moves: %d left", color_name(color).c_str(), ge[color]->getname().c_str(), stones_to_do[color]);
-					result = "?";
-					rr = RR_ERROR;
-					break;
+		if (tc.constant_time) {
+			if (took > uint64_t(tc.main_time * 1000))
+				time_left[color] = -1;
+
+			time_total[color] += took;
+		}
+		else {
+			time_total[color] += took;
+			time_left [color] -= took;
+
+			stones_to_do[color]--;
+
+			if (time_left[color] < 0) {
+				if (ts[color] == ts_main_time)
+					ts[color] = ts_byo_yomi_time;
+				else {
+					if (stones_to_do[color] != 0) {
+						dolog(info, "%s (%s) did not return enought byo yomi moves: %d left", color_name(color).c_str(), ge[color]->getname().c_str(), stones_to_do[color]);
+						result = "?";
+						rr = RR_ERROR;
+						break;
+					}
 				}
-			}
 
-			time_left[color]    = int(tc.byo_yomi_time * 1000);
-			stones_to_do[color] = tc.byo_yomi_stones;
+				time_left[color]    = int(tc.byo_yomi_time * 1000);
+				stones_to_do[color] = tc.byo_yomi_stones;
+			}
 		}
 
 		n_played[color]++;
@@ -828,6 +839,7 @@ int main(int argc, char *argv[])
 		tc.main_time       = root.lookup("main_time");
 		tc.byo_yomi_time   = root.lookup("byo_yomi_time");
 		tc.byo_yomi_stones = root.lookup("byo_yomi_stones");
+		tc.constant_time   = root.lookup("constant_time");
 
 		int n_random_stones = root.lookup("n_random_stones");
 
