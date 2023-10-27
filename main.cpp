@@ -240,12 +240,12 @@ std::tuple<std::optional<std::string>, std::vector<std::string>, run_result_t> p
 	if (pb->has_command("time_settings"))
 		pb->time_settings(tc.main_time, tc.byo_yomi_time, tc.byo_yomi_stones);
 
-	use_time_left[C_BLACK] = pb->has_command("time_left");
+	use_time_left[C_BLACK] = tc.constant_time == false && pb->has_command("time_left");
 
 	if (pw->has_command("time_settings"))
 		pw->time_settings(tc.main_time, tc.byo_yomi_time, tc.byo_yomi_stones);
 
-	use_time_left[C_WHITE] = pw->has_command("time_left");
+	use_time_left[C_WHITE] = tc.constant_time == false && pw->has_command("time_left");
 
 	if (book_entries->empty() == false) {
 		// TODO: get from book
